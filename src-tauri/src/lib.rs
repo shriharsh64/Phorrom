@@ -17,7 +17,7 @@ pub fn run() {
         )?;
       }
       // Launch the Python sidecar and keep its handle so we can stop it on exit.
-      let child = sidecar::spawn();
+      let child = sidecar::spawn(app.handle());
       app.manage(Mutex::new(child));
       Ok(())
     })

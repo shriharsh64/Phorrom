@@ -51,3 +51,7 @@ Thumbs.db
 !.vscode/extensions.json
 tsconfig.tsbuildinfo
 .claude/settings.local.json
+
+# PyInstaller + bundled sidecar binary (regenerated, large)
+build/
+src-tauri/binaries/

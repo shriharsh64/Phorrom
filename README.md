@@ -59,8 +59,26 @@ npm install
 npm run tauri dev      # builds the Rust shell, opens the desktop window
 ```
 
-A production bundle (`npm run tauri build`) is WIP — it still needs the sidecar packaged as a
-standalone binary (PyInstaller); for now the dev flow above is the way to run it.
+### Building the installer (double-click installable)
+Produces `src-tauri/target/release/bundle/nsis/Phorrom_<ver>_x64-setup.exe`, which bundles the
+app + a standalone sidecar (no Python needed on the target machine).
+
+```bash
+# 1. Build the standalone sidecar (PyInstaller) and stage it for Tauri:
+sidecar/.venv/Scripts/pyinstaller --noconfirm --onefile --name phorrom-sidecar \
+  --distpath build/sidecar-dist --workpath build/sidecar-work --specpath build \
+  --collect-all uvicorn --collect-all fastapi --collect-all starlette --collect-all pydantic \
+  --collect-all sklearn --collect-all scipy --collect-all numpy --collect-all joblib --collect-all pulp \
+  --collect-submodules sidecar --hidden-import anyio --hidden-import httpx --hidden-import h11 \
+  sidecar_main.py
+#    then copy build/sidecar-dist/phorrom-sidecar.exe to
+#    src-tauri/binaries/phorrom-sidecar-<rustc-host-triple>.exe   (e.g. -x86_64-pc-windows-msvc.exe)
+
+# 2. Build the app + installer:
+npm run tauri build
+```
+At runtime the installed app launches the bundled sidecar next to its executable and keeps its
+SQLite DB under the OS app-data dir.
 
 ### Browser + sidecar (no Rust needed)
 ```bash
