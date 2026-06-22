@@ -14,9 +14,13 @@ from typing import Any
 from ..providers.base import Message, ProviderError
 from ..providers.registry import ProviderRegistry
 from ..storage.db import Database
+import random
+
 from . import scheduler
+from .bandit import BanditRouter
 from .budgeter import BudgetInputs, solve
 from .decompose import DAG, Subtask, decompose
+from .profiles import get_profile
 from .router import Candidate
 
 
@@ -70,6 +74,8 @@ async def orchestrate(
     budget: int = 4000,
     quotas: dict[str, int] | None = None,
     execute: bool = False,
+    router: str = "heuristic",
+    seed: int | None = None,
     decomposer_provider: str = "mock",
     decomposer_model: str = "mock-small",
 ) -> dict[str, Any]:
@@ -83,14 +89,29 @@ async def orchestrate(
     ready_ids = {s.id for s in ready}
     future = [s for s in dag.subtasks if s.id not in ready_ids]
 
+    # Optional contextual-bandit routing: allocation optimizes over Thompson-sampled qualities.
+    bandit: BanditRouter | None = None
+    quality_fn = None
+    if router == "bandit":
+        bandit = BanditRouter(rng=random.Random(seed))
+        bandit.load_from_db(db, candidates)
+        quality_fn = bandit.sample_quality
+
     result = solve(BudgetInputs(
-        ready=ready, candidates=candidates, budget=budget, future=future, quotas=quotas or {},
+        ready=ready, candidates=candidates, budget=budget, future=future,
+        quotas=quotas or {}, quality_fn=quality_fn,
     ))
 
     task_id = _persist_dag(db, project_id, task_title, dag)
     outputs: dict[str, str] = {}
     if execute:
         outputs = await _execute(registry, db, result.assignments, by_id)
+        # Learn from this batch: observe a reward per assignment and persist the posterior.
+        if bandit is not None:
+            for a in result.assignments:
+                reward = get_profile(a.provider, a.model).quality_for(by_id[a.subtask_id].type)
+                bandit.observe(a.provider, a.model, by_id[a.subtask_id].type, reward)
+                db.update_bandit_arm(a.provider, a.model, by_id[a.subtask_id].type, reward)
 
     db.audit("agent", "orchestrate", {
         "project_id": project_id, "task_id": task_id, "subtasks": len(dag.subtasks),
@@ -100,6 +121,7 @@ async def orchestrate(
 
     return {
         "task_id": task_id,
+        "router": router,
         "subtasks": [s.model_dump() for s in dag.subtasks],
         "critical_path": scheduler.critical_path_length(dag.subtasks),
         "ready": [s.id for s in ready],

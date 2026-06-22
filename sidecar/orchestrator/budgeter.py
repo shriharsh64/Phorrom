@@ -20,12 +20,17 @@ This module is pure (no DB/network) so the over-spend guarantees are unit-testab
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Callable
 
 from .decompose import Subtask
 from .profiles import get_profile
 from .router import Candidate
 
 SAFETY = 1.2
+
+# Quality estimate for a (subtask, candidate). Defaults to the static capability profile; the
+# bandit router supplies a Thompson-sampled estimate instead so allocation explores.
+QualityFn = Callable[[Subtask, Candidate], float]
 
 
 @dataclass
@@ -36,6 +41,7 @@ class BudgetInputs:
     future: list[Subtask] = field(default_factory=list)
     quotas: dict[str, int] = field(default_factory=dict)  # provider -> remaining metered tokens
     safety: float = SAFETY
+    quality_fn: QualityFn | None = None
 
 
 @dataclass
@@ -63,7 +69,9 @@ def reserve_future(future: list[Subtask], safety: float = SAFETY) -> int:
     return round(sum(s.size_hint * s.p_required for s in future) * safety)
 
 
-def _quality(subtask: Subtask, c: Candidate) -> float:
+def _quality(subtask: Subtask, c: Candidate, fn: QualityFn | None = None) -> float:
+    if fn is not None:
+        return fn(subtask, c)
     return get_profile(c.provider, c.model).quality_for(subtask.type)
 
 
@@ -91,7 +99,7 @@ def _solve_pulp(inp: BudgetInputs, reserved: int, available: int) -> BudgetResul
             key = (s.id, c.provider, c.model)
             var = pulp.LpVariable(f"x_{s.id}_{c.provider}_{c.model}", cat="Binary")
             x[key] = var
-            obj_terms.append(s.value * _quality(s, c) * var)
+            obj_terms.append(s.value * _quality(s, c, inp.quality_fn) * var)
     prob += pulp.lpSum(obj_terms)
 
     # Each ready subtask gets at most one model.
@@ -132,7 +140,7 @@ def _solve_greedy(inp: BudgetInputs, reserved: int, available: int) -> BudgetRes
     for s in sorted(inp.ready, key=lambda s: s.value, reverse=True):
         best: tuple[float, Candidate] | None = None
         for c in inp.candidates:
-            q = _quality(s, c)
+            q = _quality(s, c, inp.quality_fn)
             unlimited = _is_unlimited(c)
             if not unlimited:
                 if spent + s.size_hint > available:
@@ -162,8 +170,8 @@ def _collect(inp: BudgetInputs, reserved: int, available: int, x_lookup, method:
             if x_lookup((s.id, c.provider, c.model)) >= 0.5:
                 unlimited = _is_unlimited(c)
                 assignments.append(Assignment(
-                    s.id, c.provider, c.model, s.size_hint, round(_quality(s, c), 4),
-                    metered=not unlimited,
+                    s.id, c.provider, c.model, s.size_hint,
+                    round(_quality(s, c, inp.quality_fn), 4), metered=not unlimited,
                 ))
                 if not unlimited:
                     total_metered += s.size_hint

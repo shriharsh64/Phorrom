@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -216,6 +216,19 @@ CREATE TABLE IF NOT EXISTS ideas (
     required_concepts TEXT,                          -- json array
     status            TEXT NOT NULL DEFAULT 'suggested', -- suggested|selected|dismissed
     created_at        REAL NOT NULL
+);
+
+-- Contextual-bandit arms: one Beta(alpha,beta) posterior per (provider, model, task_type).
+-- The router Thompson-samples these to learn each model's real strength from observed reward
+-- (reward = quality − λ·cost, in 0..1). Persisted so learning survives restarts.
+CREATE TABLE IF NOT EXISTS bandit_arms (
+    provider   TEXT NOT NULL,
+    model      TEXT NOT NULL,
+    task_type  TEXT NOT NULL,
+    alpha      REAL NOT NULL DEFAULT 1.0,
+    beta       REAL NOT NULL DEFAULT 1.0,
+    updates    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (provider, model, task_type)
 );
 """
 
@@ -724,6 +737,33 @@ class Database:
     def clear_ideas(self, project_id: int) -> None:
         self.conn.execute("DELETE FROM ideas WHERE project_id=?", (project_id,))
         self.conn.commit()
+
+    # --- contextual-bandit arms (router learning) ------------------------------
+    def get_bandit_arm(self, provider: str, model: str, task_type: str) -> tuple[float, float]:
+        row = self.conn.execute(
+            "SELECT alpha, beta FROM bandit_arms WHERE provider=? AND model=? AND task_type=?",
+            (provider, model, task_type),
+        ).fetchone()
+        return (row["alpha"], row["beta"]) if row else (1.0, 1.0)
+
+    def update_bandit_arm(self, provider: str, model: str, task_type: str, reward: float) -> None:
+        reward = max(0.0, min(1.0, reward))
+        alpha, beta = self.get_bandit_arm(provider, model, task_type)
+        self.conn.execute(
+            "INSERT INTO bandit_arms(provider, model, task_type, alpha, beta, updates)"
+            " VALUES(?,?,?,?,?,1)"
+            " ON CONFLICT(provider, model, task_type) DO UPDATE SET"
+            " alpha=alpha+?, beta=beta+?, updates=updates+1",
+            (provider, model, task_type, 1.0 + reward, 1.0 + (1.0 - reward),
+             reward, 1.0 - reward),
+        )
+        self.conn.commit()
+
+    def list_bandit_arms(self) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT *, alpha/(alpha+beta) AS mean FROM bandit_arms ORDER BY provider, model, task_type"
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     # --- governed file writes (capability #9) ----------------------------------
     def add_pending_write(
