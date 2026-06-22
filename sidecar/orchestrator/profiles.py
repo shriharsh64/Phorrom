@@ -46,6 +46,13 @@ _KEYWORD_STRENGTHS: dict[str, dict[str, float]] = {
 }
 
 
+# Free cloud gateways: monetarily ~free but token-quota-limited (metered, not unlimited).
+FREE_PROVIDERS = {"gemini", "groq", "openrouter", "cerebras", "mistral", "github",
+                  "cloudflare", "huggingface", "cohere", "sambanova"}
+# Gateways known for very low latency.
+FAST_PROVIDERS = {"groq", "cerebras", "sambanova"}
+
+
 def infer_profile(provider: str, model: str) -> CapabilityProfile:
     """Build a reasonable profile from the provider + model id when none is configured."""
 
@@ -56,12 +63,13 @@ def infer_profile(provider: str, model: str) -> CapabilityProfile:
         if kw in mid:
             for t, v in boosts.items():
                 strengths[t] = max(strengths[t], v)
-    # Gemini long-context/vision lean; local models cost nothing.
     if provider == "gemini":
         strengths["long_context"] = max(strengths["long_context"], 0.85)
         strengths["vision"] = max(strengths["vision"], 0.8)
-    cost = 0.0 if unlimited else 0.5
-    latency = "fast" if ("flash" in mid or "mini" in mid or provider == "groq") else "medium"
+    # Cost: 0 for local/unlimited; tiny for free cloud tiers; higher otherwise.
+    cost = 0.0 if unlimited else (0.1 if provider in FREE_PROVIDERS else 0.5)
+    fast = "flash" in mid or "mini" in mid or provider in FAST_PROVIDERS
+    latency = "fast" if fast else "medium"
     ctx = 1_000_000 if provider == "gemini" else 8192
     return CapabilityProfile(provider, model, cost, latency, ctx, unlimited, strengths)
 

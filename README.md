@@ -38,5 +38,15 @@ py -3.11 -m venv sidecar/.venv
 sidecar/.venv/Scripts/python -m pip install -r sidecar/requirements.txt
 ```
 
+### Provider API keys (all optional — the app runs on the mock/Ollama with none)
+Set as environment variables before launching the sidecar; missing keys simply disable that
+provider. They will move to the OS keychain once the Tauri shell lands.
+
+| Env var | Provider | Free key from |
+|---|---|---|
+| `GEMINI_API_KEY` | Google AI Studio | aistudio.google.com |
+| `GROQ_API_KEY` | Groq | console.groq.com |
+| `OPENROUTER_API_KEY` | OpenRouter (`:free` models) | openrouter.ai |
+
 ## License
 TBD.

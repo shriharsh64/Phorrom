@@ -26,6 +26,7 @@ from .providers.base import Provider
 from .providers.gemini import GeminiProvider
 from .providers.mock import MockProvider
 from .providers.ollama import OllamaProvider
+from .providers.openai_compat import groq_provider, openrouter_provider
 from .providers.registry import ProviderRegistry
 from .storage.db import Database
 
@@ -35,6 +36,8 @@ def build_providers(cfg: Config) -> list[Provider]:
         MockProvider(),
         OllamaProvider(host=cfg.ollama_host),
         GeminiProvider(api_key=cfg.gemini_api_key),
+        groq_provider(cfg.groq_api_key),
+        openrouter_provider(cfg.openrouter_api_key),
     ]
 
 

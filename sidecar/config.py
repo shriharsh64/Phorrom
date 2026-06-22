@@ -17,6 +17,8 @@ class Config:
     auth_token: str | None  # bearer token shared by shell; None disables auth (dev)
     gemini_api_key: str | None
     ollama_host: str
+    groq_api_key: str | None = None
+    openrouter_api_key: str | None = None
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -24,5 +26,7 @@ class Config:
             db_path=os.environ.get("PHORROM_DB_PATH", "phorrom.sqlite"),
             auth_token=os.environ.get("PHORROM_TOKEN") or None,
             gemini_api_key=os.environ.get("GEMINI_API_KEY") or None,
+            groq_api_key=os.environ.get("GROQ_API_KEY") or None,
+            openrouter_api_key=os.environ.get("OPENROUTER_API_KEY") or None,
             ollama_host=os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434"),
         )

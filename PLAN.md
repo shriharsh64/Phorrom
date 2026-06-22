@@ -105,7 +105,8 @@ dynamic workflow).
 - [x] networkx scheduler (ready-set + critical-path)
 - [x] PuLP token-budgeter with **future-demand reservation** + token ledger; greedy fallback
 - [x] Orchestrator UI (DAG + budget + routing)
-- [ ] Remaining cloud adapters (Groq/OpenRouter/...) + dynamic discovery + failover — TODO
+- [x] Cloud adapters: OpenAI-compatible base + Groq + OpenRouter (dynamic discovery, key-gated)
+- [ ] Cerebras/Mistral/etc. (same base, just config) + automatic failover/circuit-breaker — TODO
 - **DoD met:** task decomposes, subtasks route to different models, ledger+reservation
   provably prevent over-spend (proven by tests).
 
