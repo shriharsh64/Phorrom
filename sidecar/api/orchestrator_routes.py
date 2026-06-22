@@ -37,7 +37,7 @@ def build_orchestrator_router() -> APIRouter:
         return await orchestrate(
             request.app.state.registry, db, req.project_id, req.task,
             budget=req.budget, quotas=req.quotas, execute=req.execute,
-            router=req.router, seed=req.seed,
+            router=req.router, seed=req.seed, breaker=request.app.state.breaker,
             decomposer_provider=req.provider, decomposer_model=req.model,
         )
 

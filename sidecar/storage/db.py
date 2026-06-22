@@ -408,6 +408,13 @@ class Database:
         self.conn.commit()
         return int(cur.lastrowid)
 
+    def tokens_by_provider(self) -> dict[str, int]:
+        rows = self.conn.execute(
+            "SELECT provider, COALESCE(SUM(tokens),0) AS t FROM token_ledger"
+            " WHERE kind='consume' GROUP BY provider ORDER BY t DESC"
+        ).fetchall()
+        return {r["provider"]: int(r["t"]) for r in rows}
+
     def tokens_consumed(self, provider: str | None = None) -> int:
         if provider is None:
             row = self.conn.execute(

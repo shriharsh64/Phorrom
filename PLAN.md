@@ -106,7 +106,8 @@ dynamic workflow).
 - [x] PuLP token-budgeter with **future-demand reservation** + token ledger; greedy fallback
 - [x] Orchestrator UI (DAG + budget + routing)
 - [x] Cloud adapters: OpenAI-compatible base + Groq + OpenRouter (dynamic discovery, key-gated)
-- [ ] Cerebras/Mistral/etc. (same base, just config) + automatic failover/circuit-breaker — TODO
+- [x] Failover + per-provider circuit breaker + retry/backoff; /providers/health + Dashboard tab
+- [ ] Cerebras/Mistral/etc. (same base, just config) — TODO
 - **DoD met:** task decomposes, subtasks route to different models, ledger+reservation
   provably prevent over-spend (proven by tests).
 

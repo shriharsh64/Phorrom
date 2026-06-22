@@ -28,6 +28,7 @@ from .providers.mock import MockProvider
 from .providers.ollama import OllamaProvider
 from .providers.openai_compat import groq_provider, openrouter_provider
 from .providers.registry import ProviderRegistry
+from .orchestrator.resilience import CircuitBreaker
 from .storage.db import Database
 
 
@@ -59,6 +60,8 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     app.state.registry = registry
     # Factory for outbound HTTP (research sources). Tests replace it with a MockTransport client.
     app.state.http_client_factory = lambda: httpx.AsyncClient()
+    # App-level circuit breaker so provider health persists across requests (and feeds health UI).
+    app.state.breaker = CircuitBreaker()
 
     async def require_auth(authorization: str | None = Header(default=None)) -> None:
         if cfg.auth_token is None:

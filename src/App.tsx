@@ -5,12 +5,13 @@ import PlanPanel from "./components/PlanPanel";
 import OrchestratorPanel from "./components/OrchestratorPanel";
 import IdeationPanel from "./components/IdeationPanel";
 import ResearchPanel from "./components/ResearchPanel";
+import DashboardPanel from "./components/DashboardPanel";
 
 interface Turn extends Message {
   meta?: string;
 }
 
-type Tab = "chat" | "plan" | "ideation" | "research" | "orchestrator" | "advisor";
+type Tab = "chat" | "plan" | "ideation" | "research" | "orchestrator" | "advisor" | "dashboard";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("chat");
@@ -108,6 +109,7 @@ export default function App() {
           <button className={tab === "research" ? "active" : ""} onClick={() => setTab("research")}>Research</button>
           <button className={tab === "orchestrator" ? "active" : ""} onClick={() => setTab("orchestrator")}>Orchestrator</button>
           <button className={tab === "advisor" ? "active" : ""} onClick={() => setTab("advisor")}>Advisor</button>
+          <button className={tab === "dashboard" ? "active" : ""} onClick={() => setTab("dashboard")}>Dashboard</button>
         </nav>
         <div className="project-picker">
           <select value={projectId ?? ""} onChange={(e) => setProjectId(Number(e.target.value))}>
@@ -151,7 +153,9 @@ export default function App() {
         </div>
       </header>
 
-      {projectId === null ? (
+      {tab === "dashboard" ? (
+        <DashboardPanel />
+      ) : projectId === null ? (
         <p className="hint" style={{ marginTop: 40 }}>Loading project…</p>
       ) : tab === "advisor" ? (
         <AdvisorPanel projectId={projectId} />

@@ -21,6 +21,7 @@ from .bandit import BanditRouter
 from .budgeter import BudgetInputs, solve
 from .decompose import DAG, Subtask, decompose
 from .profiles import get_profile
+from .resilience import CircuitBreaker, ResilientExecutor
 from .router import Candidate
 
 
@@ -44,26 +45,38 @@ def _persist_dag(db: Database, project_id: int, task_title: str, dag: DAG) -> in
     return task_id
 
 
+def _failover_order(primary: Candidate, candidates: list[Candidate], task_type: str) -> list[Candidate]:
+    """Primary first, then other candidates by fit — local/free 'unlimited' models kept as
+    last-resort so failover degrades gracefully toward something that always works."""
+
+    others = [c for c in candidates if (c.provider, c.model) != (primary.provider, primary.model)]
+    others.sort(key=lambda c: (get_profile(c.provider, c.model).unlimited,
+                               -get_profile(c.provider, c.model).quality_for(task_type)))
+    return [primary, *others]
+
+
 async def _execute(
-    registry: ProviderRegistry, db: Database, assignments, by_id: dict[str, Subtask]
-) -> dict[str, str]:
-    """Run each assigned subtask through its model; record real token usage in the ledger."""
+    registry: ProviderRegistry, db: Database, assignments, by_id: dict[str, Subtask],
+    candidates: list[Candidate], executor: ResilientExecutor,
+) -> dict[str, Any]:
+    """Run each assigned subtask with retry + failover; record real token usage in the ledger."""
 
     outputs: dict[str, str] = {}
+    failovers: dict[str, list[str]] = {}
     for a in assignments:
-        prov = registry.get(a.provider)
-        if prov is None:
-            continue
         sub = by_id[a.subtask_id]
+        order = _failover_order(Candidate(a.provider, a.model), candidates, sub.type)
         try:
-            resp = await prov.generate(
-                [Message(role="user", content=sub.description or sub.id)], a.model
-            )
+            res = await executor.generate(
+                registry, [Message(role="user", content=sub.description or sub.id)], order)
         except ProviderError:
             continue
-        db.record_run(resp.provider, resp.model, resp.tokens_in, resp.tokens_out, resp.latency_ms)
-        outputs[a.subtask_id] = resp.text
-    return outputs
+        r = res.response
+        db.record_run(r.provider, r.model, r.tokens_in, r.tokens_out, r.latency_ms)
+        outputs[a.subtask_id] = r.text
+        if res.failed_over_from:
+            failovers[a.subtask_id] = res.failed_over_from
+    return {"outputs": outputs, "failovers": failovers}
 
 
 async def orchestrate(
@@ -76,6 +89,7 @@ async def orchestrate(
     execute: bool = False,
     router: str = "heuristic",
     seed: int | None = None,
+    breaker: CircuitBreaker | None = None,
     decomposer_provider: str = "mock",
     decomposer_model: str = "mock-small",
 ) -> dict[str, Any]:
@@ -104,8 +118,11 @@ async def orchestrate(
 
     task_id = _persist_dag(db, project_id, task_title, dag)
     outputs: dict[str, str] = {}
+    failovers: dict[str, list[str]] = {}
     if execute:
-        outputs = await _execute(registry, db, result.assignments, by_id)
+        executor = ResilientExecutor(breaker=breaker or CircuitBreaker())
+        ex = await _execute(registry, db, result.assignments, by_id, candidates, executor)
+        outputs, failovers = ex["outputs"], ex["failovers"]
         # Learn from this batch: observe a reward per assignment and persist the posterior.
         if bandit is not None:
             for a in result.assignments:
@@ -141,4 +158,5 @@ async def orchestrate(
         ],
         "unassigned": result.unassigned,
         "outputs": outputs,
+        "failovers": failovers,
     }

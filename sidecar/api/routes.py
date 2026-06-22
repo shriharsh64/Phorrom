@@ -44,6 +44,33 @@ def build_router() -> APIRouter:
         registry: ProviderRegistry = request.app.state.registry
         return {"providers": await registry.discover()}
 
+    @router.get("/providers/health")
+    async def providers_health(request: Request) -> dict:
+        registry: ProviderRegistry = request.app.state.registry
+        breaker = request.app.state.breaker
+        snap = breaker.snapshot()
+        out = []
+        for info in await registry.discover():
+            cb = snap.get(info["provider"], {"state": "closed", "fails": 0})
+            out.append({**info, "circuit": cb["state"], "fails": cb["fails"]})
+        return {"providers": out}
+
+    @router.get("/dashboard")
+    async def dashboard(request: Request) -> dict:
+        registry: ProviderRegistry = request.app.state.registry
+        db: Database = request.app.state.db
+        breaker = request.app.state.breaker
+        snap = breaker.snapshot()
+        providers = []
+        for info in await registry.discover():
+            cb = snap.get(info["provider"], {"state": "closed", "fails": 0})
+            providers.append({"provider": info["provider"], "available": info["available"],
+                              "models": len(info["models"]), "circuit": cb["state"],
+                              "fails": cb["fails"]})
+        by_provider = db.tokens_by_provider()
+        return {"providers": providers, "tokens": {"by_provider": by_provider,
+                "total": sum(by_provider.values())}}
+
     @router.post("/chat", response_model=ChatResponse)
     async def chat(req: ChatRequest, request: Request) -> ChatResponse:
         registry: ProviderRegistry = request.app.state.registry

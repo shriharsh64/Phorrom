@@ -14,6 +14,17 @@ export interface ProviderInfo {
   models: string[];
 }
 
+export interface DashboardData {
+  providers: {
+    provider: string;
+    available: boolean;
+    models: number;
+    circuit: "closed" | "open" | "half_open";
+    fails: number;
+  }[];
+  tokens: { by_provider: Record<string, number>; total: number };
+}
+
 export interface ChatResult {
   text: string;
   provider: string;
@@ -237,6 +248,7 @@ export interface IdeaRow {
 export const api = {
   health: () => req<{ status: string }>("/health"),
   providers: () => req<{ providers: ProviderInfo[] }>("/providers"),
+  dashboard: () => req<DashboardData>("/dashboard"),
 
   listProjects: () => req<{ projects: Project[] }>("/projects"),
   createProject: (name: string) =>
