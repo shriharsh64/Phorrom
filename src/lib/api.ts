@@ -14,6 +14,21 @@ export interface ProviderInfo {
   models: string[];
 }
 
+export interface MlMetrics {
+  n_train: number;
+  n_test: number;
+  token_mae: number;
+  token_r2: number;
+  quality_mae: number;
+  quality_r2: number;
+}
+
+export interface MlStatus {
+  trained: boolean;
+  samples: number;
+  metrics: MlMetrics | null;
+}
+
 export interface DashboardData {
   providers: {
     provider: string;
@@ -249,6 +264,8 @@ export const api = {
   health: () => req<{ status: string }>("/health"),
   providers: () => req<{ providers: ProviderInfo[] }>("/providers"),
   dashboard: () => req<DashboardData>("/dashboard"),
+  mlStatus: () => req<MlStatus>("/ml/status"),
+  mlTrain: () => req<{ trained: boolean; metrics: MlMetrics }>("/ml/train", { method: "POST" }),
 
   listProjects: () => req<{ projects: Project[] }>("/projects"),
   createProject: (name: string) =>

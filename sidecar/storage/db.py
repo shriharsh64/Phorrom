@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -282,6 +282,19 @@ CREATE TABLE IF NOT EXISTS response_evaluations (
     depth_fit   REAL,
     iterations  INTEGER NOT NULL DEFAULT 1,
     directives  TEXT,
+    created_at  REAL NOT NULL
+);
+
+-- Training samples for the learned token/quality estimators (Phase 4 ML). One row per executed
+-- subtask: features (type, size_hint, provider, model) + observed targets (tokens, quality).
+CREATE TABLE IF NOT EXISTS estimator_samples (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    type        TEXT NOT NULL,
+    size_hint   INTEGER NOT NULL,
+    provider    TEXT NOT NULL,
+    model       TEXT NOT NULL,
+    tokens      INTEGER NOT NULL,
+    quality     REAL,
     created_at  REAL NOT NULL
 );
 """
@@ -915,6 +928,25 @@ class Database:
         )
         self.conn.commit()
         return int(cur.lastrowid)
+
+    # --- estimator samples (Phase 4 ML) ----------------------------------------
+    def add_estimator_sample(
+        self, type: str, size_hint: int, provider: str, model: str, tokens: int,
+        quality: float | None,
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO estimator_samples(type, size_hint, provider, model, tokens, quality,"
+            " created_at) VALUES(?,?,?,?,?,?,?)",
+            (type, size_hint, provider, model, tokens, quality, time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def list_estimator_samples(self, limit: int = 5000) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM estimator_samples ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     # --- governed file writes (capability #9) ----------------------------------
     def add_pending_write(

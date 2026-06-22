@@ -38,6 +38,7 @@ def build_orchestrator_router() -> APIRouter:
             request.app.state.registry, db, req.project_id, req.task,
             budget=req.budget, quotas=req.quotas, execute=req.execute,
             router=req.router, seed=req.seed, breaker=request.app.state.breaker,
+            estimator=request.app.state.estimator,
             decomposer_provider=req.provider, decomposer_model=req.model,
         )
 

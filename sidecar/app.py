@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api.advisor_routes import build_advisor_router
 from .api.ideation_routes import build_ideation_router
+from .api.ml_routes import build_ml_router
 from .api.optimize_routes import build_optimize_router
 from .api.orchestrator_routes import build_orchestrator_router
 from .api.phase2_routes import build_phase2_router
@@ -29,6 +30,7 @@ from .providers.ollama import OllamaProvider
 from .providers.openai_compat import groq_provider, openrouter_provider
 from .providers.registry import ProviderRegistry
 from .orchestrator.resilience import CircuitBreaker
+from .ml.estimators import TokenQualityEstimator
 from .storage.db import Database
 
 
@@ -62,6 +64,8 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     app.state.http_client_factory = lambda: httpx.AsyncClient()
     # App-level circuit breaker so provider health persists across requests (and feeds health UI).
     app.state.breaker = CircuitBreaker()
+    # App-level learned estimator (heuristic until /ml/train is run).
+    app.state.estimator = TokenQualityEstimator()
 
     async def require_auth(authorization: str | None = Header(default=None)) -> None:
         if cfg.auth_token is None:
@@ -77,6 +81,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     app.include_router(build_ideation_router(), dependencies=[Depends(require_auth)])
     app.include_router(build_research_router(), dependencies=[Depends(require_auth)])
     app.include_router(build_optimize_router(), dependencies=[Depends(require_auth)])
+    app.include_router(build_ml_router(), dependencies=[Depends(require_auth)])
     return app
 
 

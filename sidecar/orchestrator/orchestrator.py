@@ -73,6 +73,10 @@ async def _execute(
             continue
         r = res.response
         db.record_run(r.provider, r.model, r.tokens_in, r.tokens_out, r.latency_ms)
+        # Log a training sample for the learned estimators: observed tokens + a quality proxy.
+        quality_proxy = get_profile(r.provider, r.model).quality_for(sub.type)
+        db.add_estimator_sample(sub.type, sub.size_hint, r.provider, r.model,
+                                r.tokens_in + r.tokens_out, quality_proxy)
         outputs[a.subtask_id] = r.text
         if res.failed_over_from:
             failovers[a.subtask_id] = res.failed_over_from
@@ -90,6 +94,7 @@ async def orchestrate(
     router: str = "heuristic",
     seed: int | None = None,
     breaker: CircuitBreaker | None = None,
+    estimator: Any = None,
     decomposer_provider: str = "mock",
     decomposer_model: str = "mock-small",
 ) -> dict[str, Any]:
@@ -110,6 +115,9 @@ async def orchestrate(
         bandit = BanditRouter(rng=random.Random(seed))
         bandit.load_from_db(db, candidates)
         quality_fn = bandit.sample_quality
+    elif router == "learned" and estimator is not None and getattr(estimator, "trained", False):
+        # Allocation optimizes over the learned quality estimate for each subtask×model.
+        quality_fn = lambda s, c: estimator.predict(s.type, s.size_hint, c.provider, c.model)[1]  # noqa: E731
 
     result = solve(BudgetInputs(
         ready=ready, candidates=candidates, budget=budget, future=future,

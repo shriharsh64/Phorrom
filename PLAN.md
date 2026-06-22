@@ -117,7 +117,9 @@ dynamic workflow).
       gaps → Advisor targets them → mastery feeds back via /ideation/mastered (loop test green)
 
 ### Phase 4 — ML & advanced  (partially blocked)
-- [ ] Token/quality estimators (heuristic → LightGBM/PyTorch); priority net → ONNX — codeable
+- [x] Token/quality estimators (heuristic → scikit-learn GBR), trained from logged run samples,
+      holdout metrics, joblib persistence, router="learned"; /ml/train|status|estimate + UI.
+      (ONNX export deferred — joblib serving is sufficient locally.)
 - [x] Contextual-bandit router (Thompson sampling) — DONE (learns, persists, feeds budgeter)
 - [x] Patent/prior-art research (Semantic Scholar + arXiv) — DONE (grounded, no fabrication, UI)
 - [x] Progress Assessment Engine (#7) — DONE (non-binary milestone quality, risks, next steps, UI)
