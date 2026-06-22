@@ -118,6 +118,7 @@ dynamic workflow).
 - [ ] Token/quality estimators (heuristic → LightGBM/PyTorch); priority net → ONNX — codeable
 - [x] Contextual-bandit router (Thompson sampling) — DONE (learns, persists, feeds budgeter)
 - [x] Patent/prior-art research (Semantic Scholar + arXiv) — DONE (grounded, no fabrication, UI)
+- [x] Progress Assessment Engine (#7) — DONE (non-binary milestone quality, risks, next steps, UI)
 - [ ] IEEE/ACM/APA doc generation — **BLOCKED**: needs Pandoc + LaTeX (not installed)
 - [ ] Multimodal input — **BLOCKED**: needs Tesseract OCR + whisper.cpp (not installed)
 - **DoD:** predictions feed scheduling; a compliant paper generates from real project data.

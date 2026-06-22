@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type ProblemRecord, type TaskRow } from "../lib/api";
+import { api, type ProblemRecord, type ProgressAssessment, type TaskRow } from "../lib/api";
 
 // Phase 2 "Plan" view: define the problem (capability #1) and manage a prioritized,
 // dependency-aware task list (capability #8).
@@ -11,12 +11,23 @@ export default function PlanPanel({ projectId }: { projectId: number }) {
   const [urgency, setUrgency] = useState(0.5);
   const [impact, setImpact] = useState(0.5);
   const [busy, setBusy] = useState(false);
+  const [assessment, setAssessment] = useState<ProgressAssessment | null>(null);
 
   async function refresh() {
-    const [p, t] = await Promise.all([api.latestProblem(projectId), api.listTasks(projectId)]);
+    const [p, t, a] = await Promise.all([
+      api.latestProblem(projectId), api.listTasks(projectId), api.latestProgress(projectId),
+    ]);
     setProblem(p.record);
     setTasks(t.tasks);
+    setAssessment(a.assessment);
   }
+
+  async function assess() {
+    setAssessment(await api.assessProgress(projectId));
+    await refresh();
+  }
+
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
   useEffect(() => {
     void refresh();
   }, [projectId]);
@@ -69,6 +80,33 @@ export default function PlanPanel({ projectId }: { projectId: number }) {
               )}
             </div>
           </div>
+        )}
+      </section>
+
+      <section style={{ marginTop: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ border: "none", margin: 0 }}>Progress</h2>
+          <button onClick={() => void assess()}>Assess</button>
+        </div>
+        {assessment ? (
+          <div className="bt-card" style={{ borderLeftColor: "#3fb950" }}>
+            <div className="bt-body">
+              <div className="progress-row" style={{ margin: 0 }}>
+                <span>✅ Completion {pct(assessment.completion)}</span>
+                <span>❤️ Health {pct(assessment.health)}</span>
+                <span>⚠️ {assessment.risks.length} risk(s)</span>
+              </div>
+              {assessment.narrative && <div className="meta">{assessment.narrative}</div>}
+              {assessment.risks.map((r, i) => (
+                <div key={i} className="meta">⚠ [{r.severity}] {r.detail}</div>
+              ))}
+              {assessment.recommendations.map((rec, i) => (
+                <div key={i} className="meta">→ {rec}</div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="hint" style={{ textAlign: "left" }}>Run an assessment to score milestones, flag risks, and get next steps.</p>
         )}
       </section>
 

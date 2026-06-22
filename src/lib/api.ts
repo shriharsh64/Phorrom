@@ -121,6 +121,15 @@ export interface ProblemRecord {
   clarifying_questions?: string[];
 }
 
+export interface ProgressAssessment {
+  completion: number;
+  health: number;
+  milestones: { task_id: number; title: string; status: string; quality: number }[];
+  risks: { type: string; severity: string; detail: string }[];
+  recommendations: string[];
+  narrative: string | null;
+}
+
 export interface TaskRow {
   id: number;
   title: string;
@@ -240,6 +249,11 @@ export const api = {
     }),
   setTaskStatus: (id: number, status: string) =>
     req(`/tasks/${id}/status`, { method: "POST", body: JSON.stringify({ status }) }),
+
+  assessProgress: (project_id: number) =>
+    req<ProgressAssessment>("/progress/assess", { method: "POST", body: JSON.stringify({ project_id }) }),
+  latestProgress: (project_id: number) =>
+    req<{ assessment: ProgressAssessment | null }>(`/progress/latest?project_id=${project_id}`),
 
   orchestrate: (project_id: number, task: string, budget: number, execute = false) =>
     req<OrchestrateResult>("/orchestrate", {

@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -255,6 +255,20 @@ CREATE TABLE IF NOT EXISTS research_summaries (
     n_results   INTEGER NOT NULL DEFAULT 0,
     grounded    INTEGER NOT NULL DEFAULT 1,      -- 0 if heuristic/ungrounded fallback was used
     created_at  REAL NOT NULL
+);
+
+-- Progress assessments (capability #7). Non-binary: each milestone gets a quality score; the
+-- project gets a completion %, a health score, flagged risks, and recommended next steps.
+CREATE TABLE IF NOT EXISTS progress_assessments (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id      INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    completion      REAL NOT NULL DEFAULT 0,
+    health          REAL NOT NULL DEFAULT 0,
+    milestones      TEXT,                         -- json array of {task_id,title,quality,status}
+    risks           TEXT,                         -- json array of {type,severity,detail}
+    recommendations TEXT,                         -- json array of strings
+    narrative       TEXT,
+    created_at      REAL NOT NULL
 );
 """
 
@@ -840,6 +854,33 @@ class Database:
             (project_id,),
         ).fetchone()
         return dict(row) if row else None
+
+    # --- progress assessments (capability #7) ----------------------------------
+    def add_progress_assessment(
+        self, project_id: int, completion: float, health: float,
+        milestones: list[dict], risks: list[dict], recommendations: list[str],
+        narrative: str | None,
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO progress_assessments(project_id, completion, health, milestones, risks,"
+            " recommendations, narrative, created_at) VALUES(?,?,?,?,?,?,?,?)",
+            (project_id, completion, health, json.dumps(milestones), json.dumps(risks),
+             json.dumps(recommendations), narrative, time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def latest_progress_assessment(self, project_id: int) -> dict | None:
+        row = self.conn.execute(
+            "SELECT * FROM progress_assessments WHERE project_id=? ORDER BY id DESC LIMIT 1",
+            (project_id,),
+        ).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        for f in ("milestones", "risks", "recommendations"):
+            d[f] = json.loads(d.get(f) or "[]")
+        return d
 
     # --- governed file writes (capability #9) ----------------------------------
     def add_pending_write(

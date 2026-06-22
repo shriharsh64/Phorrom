@@ -6,7 +6,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from ..capabilities import problem_architect
+from ..capabilities import problem_architect, progress
 from ..capabilities.prioritizer import compute_priorities
 from ..files import manager as files
 from ..files.manager import PathError
@@ -131,6 +131,16 @@ def build_phase2_router() -> APIRouter:
         if not db.set_task_status(task_id, body.status):
             raise HTTPException(status_code=404, detail="task not found")
         return {"id": task_id, "status": body.status}
+
+    # --- progress assessment (#7) ------------------------------------------
+    @router.post("/progress/assess")
+    async def assess_progress(body: ReadReq, request: Request) -> dict:
+        db: Database = request.app.state.db
+        return await progress.assess(request.app.state.registry, db, body.project_id)
+
+    @router.get("/progress/latest")
+    async def latest_progress(request: Request, project_id: int) -> dict:
+        return {"assessment": request.app.state.db.latest_progress_assessment(project_id)}
 
     # --- governed file manager (#9) ----------------------------------------
     @router.post("/files/list")
