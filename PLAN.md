@@ -93,32 +93,39 @@ dynamic workflow).
 - **DoD:** chat with a (mock/local) model from the UI, persisted to SQLite.
 
 ### Phase 2 — Core capabilities & data model
-- [ ] Problem-Statement Architect flow; task model; basic prioritization
-- [ ] File manager: read + audited write with approval + diff preview
-- [ ] Roadmap view in React Flow
-- **DoD:** create a project, add tasks, read/write files safely.
+- [x] Problem-Statement Architect flow; task model; dependency-aware prioritization
+- [x] File manager: read + audited write with approval + diff preview (path-escape blocked)
+- [x] Project picker + Plan UI
+- [ ] Roadmap view in React Flow — deferred (structured views shipped; graph canvas is polish)
+- **DoD met:** create a project, add tasks, read/write files safely (tested).
 
-### Phase 3 — Orchestrator (flagship)
-- [ ] LLM decomposition → validated subtask DAG (JSON schema, repair on malformed)
-- [ ] Heuristic router (capability-profile scoring) behind a router interface
-- [ ] networkx scheduler (ready-set computation)
-- [ ] PuLP token-budgeter with **future-demand reservation** + token ledger; greedy fallback
-- [ ] Remaining provider adapters + dynamic discovery + failover/circuit-breaker
-- **DoD:** task decomposes, subtasks route to different models, ledger+reservation provably
-  prevent over-spend (proven by tests).
+### Phase 3 — Orchestrator (flagship)  ✅ DONE
+- [x] LLM decomposition → validated subtask DAG (schema + cycle/unknown-dep checks, fallback)
+- [x] Heuristic router (capability-profile scoring) behind a Router interface
+- [x] networkx scheduler (ready-set + critical-path)
+- [x] PuLP token-budgeter with **future-demand reservation** + token ledger; greedy fallback
+- [x] Orchestrator UI (DAG + budget + routing)
+- [ ] Remaining cloud adapters (Groq/OpenRouter/...) + dynamic discovery + failover — TODO
+- **DoD met:** task decomposes, subtasks route to different models, ledger+reservation
+  provably prevent over-spend (proven by tests).
 
-### Phase 4 — ML & advanced
-- [ ] Token/quality estimators (heuristic → LightGBM/PyTorch) ; priority multi-task net → ONNX
-- [ ] Contextual-bandit router (Thompson sampling)
-- [ ] Patent/prior-art research (Google Patents + Semantic Scholar + arXiv)
-- [ ] IEEE/ACM/APA doc generation (Pandoc + LaTeX + Jinja2)
-- [ ] Multimodal input (Tesseract OCR + whisper.cpp); response-optimization layer
+### Capability #2 — Ideation & Concept Engine  ✅ DONE (built after Phase 3, per request)
+- [x] Generate/score/rank ideas (feasibility×novelty×relevance), persist, status, UI
+- [x] Closed loop with Advisor (#3): ideation writes required-but-unmastered concepts as
+      gaps → Advisor targets them → mastery feeds back via /ideation/mastered (loop test green)
+
+### Phase 4 — ML & advanced  (partially blocked)
+- [ ] Token/quality estimators (heuristic → LightGBM/PyTorch); priority net → ONNX — codeable
+- [ ] Contextual-bandit router (Thompson sampling) — codeable (interface already in place)
+- [ ] Patent/prior-art research (Semantic Scholar + arXiv) — codeable (needs network at runtime)
+- [ ] IEEE/ACM/APA doc generation — **BLOCKED**: needs Pandoc + LaTeX (not installed)
+- [ ] Multimodal input — **BLOCKED**: needs Tesseract OCR + whisper.cpp (not installed)
 - **DoD:** predictions feed scheduling; a compliant paper generates from real project data.
 
-### Phase 5 — Sync, polish, packaging
-- [ ] Google Drive backup/restore (OAuth loopback, client-side encryption, incremental)
-- [ ] Dashboards (token ledger, provider health), onboarding, settings
-- [ ] Cross-platform bundling + installers; full README
+### Phase 5 — Sync, polish, packaging  (blocked)
+- [ ] Google Drive backup/restore — **BLOCKED**: needs OAuth client credentials (user-created)
+- [ ] Dashboards (token ledger, provider health), onboarding, settings — codeable
+- [ ] Cross-platform bundling + installers — **BLOCKED**: needs Rust/Tauri toolchain
 - **DoD:** clean machine can install, run, back up to Drive, restore.
 
 ---

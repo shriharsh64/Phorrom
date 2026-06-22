@@ -80,4 +80,11 @@ button:disabled { opacity: 0.5; cursor: default; }
 .tag.benefit.maintainability { background: #1b3a2b; color: #56d364; }
 .tag.benefit.cost { background: #3a1b2b; color: #ff7b9c; }
 
+/* --- ideation metric bars --- */
+.metrics { gap: 14px; }
+.metric { font-size: 11px; color: #8b949e; display: flex; flex-direction: column; gap: 2px; min-width: 90px; }
+.metric-bar { height: 5px; background: #30363d; border-radius: 3px; overflow: hidden; }
+.metric-bar > span { display: block; height: 100%; background: #58a6ff; }
+.bt-card .status-dot { margin-top: 2px; }
+
 @media (max-width: 680px) { .advisor-cols { grid-template-columns: 1fr; } }

@@ -176,6 +176,19 @@ export interface OrchestrateResult {
   outputs: Record<string, string>;
 }
 
+export interface IdeaRow {
+  id: number;
+  title: string;
+  description: string | null;
+  feasibility: number | null;
+  novelty: number | null;
+  relevance: number | null;
+  score: number;
+  rationale: string | null;
+  required_concepts: string[];
+  status: string;
+}
+
 export const api = {
   health: () => req<{ status: string }>("/health"),
   providers: () => req<{ providers: ProviderInfo[] }>("/providers"),
@@ -206,6 +219,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ project_id, task, budget, execute }),
     }),
+
+  ideate: (project_id: number, prompt?: string) =>
+    req<{ ideas: IdeaRow[] }>("/ideation/ideate", {
+      method: "POST",
+      body: JSON.stringify({ project_id, prompt }),
+    }),
+  listIdeas: (project_id: number) => req<{ ideas: IdeaRow[] }>(`/ideation/ideas?project_id=${project_id}`),
+  setIdeaStatus: (id: number, status: string) =>
+    req(`/ideation/ideas/${id}/status`, { method: "POST", body: JSON.stringify({ status }) }),
   chat: (messages: Message[], provider: string, model: string) =>
     req<ChatResult>("/chat", {
       method: "POST",

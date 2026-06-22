@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -198,6 +198,24 @@ CREATE TABLE IF NOT EXISTS pending_writes (
     reason      TEXT,
     status      TEXT NOT NULL DEFAULT 'pending',  -- pending|committed|rejected
     created_at  REAL NOT NULL
+);
+
+-- Ideas (capability #2 — Ideation & Concept Engine). Ranked by feasibility x novelty x
+-- relevance. Each idea's required_concepts that the user hasn't mastered are written back as
+-- 'gap' concepts (origin='ideation'), which the Resource Advisor (#3) then targets.
+CREATE TABLE IF NOT EXISTS ideas (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id        INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    title             TEXT NOT NULL,
+    description       TEXT,
+    feasibility       REAL,
+    novelty           REAL,
+    relevance         REAL,
+    score             REAL NOT NULL DEFAULT 0,
+    rationale         TEXT,
+    required_concepts TEXT,                          -- json array
+    status            TEXT NOT NULL DEFAULT 'suggested', -- suggested|selected|dismissed
+    created_at        REAL NOT NULL
 );
 """
 
@@ -663,6 +681,49 @@ class Database:
             d["depends_on"] = json.loads(d.get("depends_on") or "[]")
             out.append(d)
         return out
+
+    # --- ideas (capability #2) -------------------------------------------------
+    def add_idea(
+        self,
+        project_id: int,
+        title: str,
+        description: str | None,
+        feasibility: float | None,
+        novelty: float | None,
+        relevance: float | None,
+        score: float,
+        rationale: str | None,
+        required_concepts: list[str] | None,
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO ideas(project_id, title, description, feasibility, novelty, relevance,"
+            " score, rationale, required_concepts, status, created_at)"
+            " VALUES(?,?,?,?,?,?,?,?,?, 'suggested', ?)",
+            (project_id, title, description, feasibility, novelty, relevance, score, rationale,
+             json.dumps(required_concepts or []), time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def list_ideas(self, project_id: int) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM ideas WHERE project_id=? ORDER BY score DESC, id", (project_id,)
+        ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["required_concepts"] = json.loads(d.get("required_concepts") or "[]")
+            out.append(d)
+        return out
+
+    def set_idea_status(self, idea_id: int, status: str) -> bool:
+        cur = self.conn.execute("UPDATE ideas SET status=? WHERE id=?", (status, idea_id))
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def clear_ideas(self, project_id: int) -> None:
+        self.conn.execute("DELETE FROM ideas WHERE project_id=?", (project_id,))
+        self.conn.commit()
 
     # --- governed file writes (capability #9) ----------------------------------
     def add_pending_write(

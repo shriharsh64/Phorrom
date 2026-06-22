@@ -3,12 +3,13 @@ import { api, type Message, type Project, type ProviderInfo } from "./lib/api";
 import AdvisorPanel from "./components/AdvisorPanel";
 import PlanPanel from "./components/PlanPanel";
 import OrchestratorPanel from "./components/OrchestratorPanel";
+import IdeationPanel from "./components/IdeationPanel";
 
 interface Turn extends Message {
   meta?: string;
 }
 
-type Tab = "chat" | "plan" | "orchestrator" | "advisor";
+type Tab = "chat" | "plan" | "ideation" | "orchestrator" | "advisor";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("chat");
@@ -94,6 +95,7 @@ export default function App() {
         <nav className="tabs">
           <button className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>Chat</button>
           <button className={tab === "plan" ? "active" : ""} onClick={() => setTab("plan")}>Plan</button>
+          <button className={tab === "ideation" ? "active" : ""} onClick={() => setTab("ideation")}>Ideation</button>
           <button className={tab === "orchestrator" ? "active" : ""} onClick={() => setTab("orchestrator")}>Orchestrator</button>
           <button className={tab === "advisor" ? "active" : ""} onClick={() => setTab("advisor")}>Advisor</button>
         </nav>
@@ -135,6 +137,8 @@ export default function App() {
         <AdvisorPanel projectId={projectId} />
       ) : tab === "plan" ? (
         <PlanPanel projectId={projectId} />
+      ) : tab === "ideation" ? (
+        <IdeationPanel projectId={projectId} />
       ) : tab === "orchestrator" ? (
         <OrchestratorPanel projectId={projectId} />
       ) : (
