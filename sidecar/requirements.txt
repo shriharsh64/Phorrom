@@ -1,0 +1,13 @@
+# Phorrom sidecar — Phase 1 dependencies (pinned to Python 3.11).
+# Heavy ML deps (torch, onnxruntime, chromadb, sentence-transformers) are added in later
+# phases to keep the Phase-1 footprint small and the install fast.
+fastapi>=0.111
+uvicorn[standard]>=0.30
+httpx>=0.27
+pydantic>=2.7
+python-dotenv>=1.0
+
+# --- dev / test ---
+pytest>=8.2
+pytest-asyncio>=0.23
+anyio>=4.4
