@@ -631,6 +631,39 @@ class Database:
         self.conn.commit()
         return cur.rowcount > 0
 
+    # --- subtasks (orchestrator DAG) -------------------------------------------
+    def add_subtask(
+        self,
+        task_id: int,
+        external_id: str,
+        type: str,
+        depends_on: list[str],
+        size_hint: int,
+        value: float,
+        p_required: float,
+        quality_sensitivity: float,
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO subtasks(task_id, external_id, type, depends_on, size_hint, value,"
+            " p_required, quality_sensitivity, status, created_at)"
+            " VALUES(?,?,?,?,?,?,?,?, 'pending', ?)",
+            (task_id, external_id, type, json.dumps(depends_on), size_hint, value,
+             p_required, quality_sensitivity, time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def list_subtasks(self, task_id: int) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM subtasks WHERE task_id=? ORDER BY id", (task_id,)
+        ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["depends_on"] = json.loads(d.get("depends_on") or "[]")
+            out.append(d)
+        return out
+
     # --- governed file writes (capability #9) ----------------------------------
     def add_pending_write(
         self, project_id: int, rel_path: str, content: str, diff: str, reason: str | None
