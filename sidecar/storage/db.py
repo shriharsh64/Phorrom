@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -170,10 +170,44 @@ CREATE TABLE IF NOT EXISTS breakthroughs (
 );
 """
 
+# Problem records (capability #1) — the structured output of the Problem-Statement Architect.
+SCHEMA += """
+CREATE TABLE IF NOT EXISTS problem_records (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id       INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    statement        TEXT NOT NULL,
+    scope            TEXT,
+    gap              TEXT,
+    stakeholders     TEXT,                          -- json array
+    success_criteria TEXT,                          -- json array
+    constraints      TEXT,                          -- json array
+    assumptions      TEXT,                          -- json array
+    validation       TEXT,                          -- notes on whether it's well-formed
+    status           TEXT NOT NULL DEFAULT 'draft', -- draft|validated|archived
+    created_at       REAL NOT NULL
+);
+
+-- Governed file writes await explicit user approval (capability #9). A proposed write is
+-- staged here with a diff; committing it performs the actual write and audits it.
+CREATE TABLE IF NOT EXISTS pending_writes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    rel_path    TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    diff        TEXT,
+    reason      TEXT,
+    status      TEXT NOT NULL DEFAULT 'pending',  -- pending|committed|rejected
+    created_at  REAL NOT NULL
+);
+"""
+
 # Columns added after the initial v2 release, applied to existing DBs via ALTER (see _migrate).
 _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("learning_items", "is_gap", "INTEGER NOT NULL DEFAULT 0"),
     ("learning_items", "priority", "REAL NOT NULL DEFAULT 0"),
+    ("tasks", "urgency", "REAL"),
+    ("tasks", "impact", "REAL"),
+    ("tasks", "depends_on", "TEXT"),
 ]
 
 
@@ -220,6 +254,20 @@ class Database:
         self.conn.commit()
         self.audit("user", "create_project", {"name": name})
         return int(cur.lastrowid)
+
+    def list_projects(self) -> list[dict]:
+        rows = self.conn.execute("SELECT * FROM projects ORDER BY id").fetchall()
+        return [dict(r) for r in rows]
+
+    def get_project(self, project_id: int) -> dict | None:
+        row = self.conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+        return dict(row) if row else None
+
+    def set_project_root(self, project_id: int, root_path: str) -> None:
+        self.conn.execute(
+            "UPDATE projects SET root_path=? WHERE id=?", (root_path, project_id)
+        )
+        self.conn.commit()
 
     # --- chat ------------------------------------------------------------------
     def add_chat_message(
@@ -497,4 +545,112 @@ class Database:
         self.conn.execute("DELETE FROM resource_suggestions WHERE project_id=?", (project_id,))
         self.conn.execute("DELETE FROM learning_items WHERE project_id=?", (project_id,))
         self.conn.execute("DELETE FROM breakthroughs WHERE project_id=?", (project_id,))
+        self.conn.commit()
+
+    # --- problem records (capability #1) ---------------------------------------
+    def add_problem_record(
+        self,
+        project_id: int,
+        statement: str,
+        scope: str | None = None,
+        gap: str | None = None,
+        stakeholders: list[str] | None = None,
+        success_criteria: list[str] | None = None,
+        constraints: list[str] | None = None,
+        assumptions: list[str] | None = None,
+        validation: str | None = None,
+        status: str = "draft",
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO problem_records(project_id, statement, scope, gap, stakeholders,"
+            " success_criteria, constraints, assumptions, validation, status, created_at)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            (project_id, statement, scope, gap, json.dumps(stakeholders or []),
+             json.dumps(success_criteria or []), json.dumps(constraints or []),
+             json.dumps(assumptions or []), validation, status, time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    @staticmethod
+    def _decode_problem(row: dict) -> dict:
+        for f in ("stakeholders", "success_criteria", "constraints", "assumptions"):
+            row[f] = json.loads(row.get(f) or "[]")
+        return row
+
+    def latest_problem_record(self, project_id: int) -> dict | None:
+        row = self.conn.execute(
+            "SELECT * FROM problem_records WHERE project_id=? ORDER BY id DESC LIMIT 1",
+            (project_id,),
+        ).fetchone()
+        return self._decode_problem(dict(row)) if row else None
+
+    def list_problem_records(self, project_id: int) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM problem_records WHERE project_id=? ORDER BY id DESC", (project_id,)
+        ).fetchall()
+        return [self._decode_problem(dict(r)) for r in rows]
+
+    # --- tasks + prioritization (capabilities #8) ------------------------------
+    def add_task(
+        self,
+        project_id: int,
+        title: str,
+        description: str | None = None,
+        urgency: float | None = None,
+        impact: float | None = None,
+        depends_on: list[int] | None = None,
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO tasks(project_id, title, description, urgency, impact, depends_on,"
+            " status, created_at) VALUES(?,?,?,?,?,?, 'todo', ?)",
+            (project_id, title, description, urgency, impact,
+             json.dumps(depends_on or []), time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def list_tasks(self, project_id: int) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM tasks WHERE project_id=? ORDER BY COALESCE(priority,0) DESC, id",
+            (project_id,),
+        ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["depends_on"] = json.loads(d.get("depends_on") or "[]")
+            out.append(d)
+        return out
+
+    def set_task_priority(self, task_id: int, priority: float) -> None:
+        self.conn.execute("UPDATE tasks SET priority=? WHERE id=?", (priority, task_id))
+        self.conn.commit()
+
+    def set_task_status(self, task_id: int, status: str) -> bool:
+        cur = self.conn.execute("UPDATE tasks SET status=? WHERE id=?", (status, task_id))
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    # --- governed file writes (capability #9) ----------------------------------
+    def add_pending_write(
+        self, project_id: int, rel_path: str, content: str, diff: str, reason: str | None
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO pending_writes(project_id, rel_path, content, diff, reason, status,"
+            " created_at) VALUES(?,?,?,?,?, 'pending', ?)",
+            (project_id, rel_path, content, diff, reason, time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def get_pending_write(self, write_id: int) -> dict | None:
+        row = self.conn.execute(
+            "SELECT * FROM pending_writes WHERE id=?", (write_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def set_pending_write_status(self, write_id: int, status: str) -> None:
+        self.conn.execute(
+            "UPDATE pending_writes SET status=? WHERE id=?", (status, write_id)
+        )
         self.conn.commit()
