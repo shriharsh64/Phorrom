@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { api, type Message, type Project, type ProviderInfo } from "./lib/api";
 import AdvisorPanel from "./components/AdvisorPanel";
 import PlanPanel from "./components/PlanPanel";
+import OrchestratorPanel from "./components/OrchestratorPanel";
 
 interface Turn extends Message {
   meta?: string;
 }
 
-type Tab = "chat" | "plan" | "advisor";
+type Tab = "chat" | "plan" | "orchestrator" | "advisor";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("chat");
@@ -93,6 +94,7 @@ export default function App() {
         <nav className="tabs">
           <button className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>Chat</button>
           <button className={tab === "plan" ? "active" : ""} onClick={() => setTab("plan")}>Plan</button>
+          <button className={tab === "orchestrator" ? "active" : ""} onClick={() => setTab("orchestrator")}>Orchestrator</button>
           <button className={tab === "advisor" ? "active" : ""} onClick={() => setTab("advisor")}>Advisor</button>
         </nav>
         <div className="project-picker">
@@ -133,6 +135,8 @@ export default function App() {
         <AdvisorPanel projectId={projectId} />
       ) : tab === "plan" ? (
         <PlanPanel projectId={projectId} />
+      ) : tab === "orchestrator" ? (
+        <OrchestratorPanel projectId={projectId} />
       ) : (
         <>
       {error && <div className="error">{error}</div>}

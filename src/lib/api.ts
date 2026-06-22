@@ -135,6 +135,47 @@ export interface TaskRow {
   depth?: number;
 }
 
+// --- Phase 3: orchestrator -------------------------------------------------
+
+export interface OrchSubtask {
+  id: string;
+  type: string;
+  depends_on: string[];
+  size_hint: number;
+  value: number;
+  p_required: number;
+  quality_sensitivity: number;
+  description: string;
+}
+
+export interface OrchAssignment {
+  subtask: string;
+  provider: string;
+  model: string;
+  tokens: number;
+  quality: number;
+  metered: boolean;
+}
+
+export interface OrchestrateResult {
+  task_id: number;
+  subtasks: OrchSubtask[];
+  critical_path: number;
+  ready: string[];
+  future: string[];
+  budget: {
+    total: number;
+    reserved: number;
+    available: number;
+    total_metered_tokens: number;
+    per_provider_metered: Record<string, number>;
+    method: string;
+  };
+  assignments: OrchAssignment[];
+  unassigned: string[];
+  outputs: Record<string, string>;
+}
+
 export const api = {
   health: () => req<{ status: string }>("/health"),
   providers: () => req<{ providers: ProviderInfo[] }>("/providers"),
@@ -159,6 +200,12 @@ export const api = {
     }),
   setTaskStatus: (id: number, status: string) =>
     req(`/tasks/${id}/status`, { method: "POST", body: JSON.stringify({ status }) }),
+
+  orchestrate: (project_id: number, task: string, budget: number, execute = false) =>
+    req<OrchestrateResult>("/orchestrate", {
+      method: "POST",
+      body: JSON.stringify({ project_id, task, budget, execute }),
+    }),
   chat: (messages: Message[], provider: string, model: string) =>
     req<ChatResult>("/chat", {
       method: "POST",
