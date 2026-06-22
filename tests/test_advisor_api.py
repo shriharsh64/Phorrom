@@ -74,3 +74,29 @@ def test_invalid_status_rejected(client: TestClient) -> None:
 def test_resource_status_404_for_missing(client: TestClient) -> None:
     r = client.post("/advisor/resources/99999/status", json={"status": "done"})
     assert r.status_code == 404
+
+
+def test_recommend_returns_breakthroughs_and_status_update(client: TestClient) -> None:
+    pid = _new_project(client)
+    body = client.post("/advisor/recommend", json={
+        "project_id": pid,
+        "context": {"problem": "smart irrigation", "tech": ["python", "iot"]},
+    }).json()
+    bts = body["overview"]["breakthroughs"]
+    assert bts, "breakthroughs should be present"
+    assert bts[0]["score"] >= bts[-1]["score"]  # ranked
+    assert isinstance(bts[0]["benefit_types"], list)
+
+    r = client.post(f"/advisor/breakthroughs/{bts[0]['id']}/status", json={"status": "exploring"})
+    assert r.status_code == 200
+    bad = client.post(f"/advisor/breakthroughs/{bts[0]['id']}/status", json={"status": "nope"})
+    assert bad.status_code == 422
+
+
+def test_learning_overview_reports_gap_count(client: TestClient) -> None:
+    pid = _new_project(client)
+    client.post("/ideation/gaps", json={"project_id": pid, "concept": "ML foundations"})
+    ov = client.post("/advisor/recommend", json={
+        "project_id": pid, "context": {"problem": "x", "tech": ["python", "ml"]},
+    }).json()["overview"]
+    assert ov["progress"]["learning"]["gaps"] >= 1

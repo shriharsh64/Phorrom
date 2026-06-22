@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   api,
   type AdvisorOverview,
+  type BreakthroughRow,
   type LearningRow,
   type ResourceRow,
 } from "../lib/api";
@@ -51,6 +52,13 @@ export default function AdvisorPanel({ projectId }: { projectId: number }) {
     setData(await api.advisorOverview(projectId));
   }
 
+  async function cycleBreakthrough(item: BreakthroughRow) {
+    const order = ["suggested", "exploring", "done", "dismissed"];
+    const next = order[(order.indexOf(item.status) + 1) % order.length];
+    await api.setBreakthroughStatus(item.id, next);
+    setData(await api.advisorOverview(projectId));
+  }
+
   // Group learning items by concept, preserving prerequisite order.
   const learningByConcept = useMemo(() => {
     const map = new Map<string, LearningRow[]>();
@@ -92,10 +100,42 @@ export default function AdvisorPanel({ projectId }: { projectId: number }) {
 
       {p && (
         <div className="progress-row">
-          <span>📚 Learn: {p.learning.done}/{p.learning.total} done</span>
+          <span>📚 Learn: {p.learning.done}/{p.learning.total} done · {p.learning.gaps} gap items</span>
           <span>🧰 Resources: {p.resources.done}/{p.resources.total} used</span>
           <span>🧠 Concepts: {p.concepts.mastered} mastered · {p.concepts.gap} gaps</span>
+          <span>🚀 Breakthroughs: {p.breakthroughs.total}</span>
         </div>
+      )}
+
+      {(data?.breakthroughs.length ?? 0) > 0 && (
+        <section className="breakthroughs">
+          <h2>Breakthrough opportunities</h2>
+          <p className="hint" style={{ margin: "0 0 10px", textAlign: "left" }}>
+            High-leverage improvements ranked by payoff vs effort.
+          </p>
+          {data!.breakthroughs.map((b) => (
+            <div key={b.id} className={`bt-card ${b.status}`}>
+              <button className="status-dot" title={b.status} onClick={() => void cycleBreakthrough(b)}>
+                {b.status === "done" ? "✓" : b.status === "exploring" ? "…" : b.status === "dismissed" ? "✕" : "○"}
+              </button>
+              <div className="bt-body">
+                <div className="bt-title">
+                  {b.title}
+                  <span className="bt-score">score {b.score}</span>
+                </div>
+                <div className="bt-tags">
+                  {b.benefit_types.map((t) => <span key={t} className={`tag benefit ${t}`}>{t}</span>)}
+                  <span className="tag">impact: {b.impact}</span>
+                  <span className="tag">effort: {b.effort}</span>
+                </div>
+                {b.rationale && <div className="meta">{b.rationale}</div>}
+                {b.related_concepts.length > 0 && (
+                  <div className="meta">Needs: {b.related_concepts.join(", ")}</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </section>
       )}
 
       <div className="advisor-cols">
@@ -112,6 +152,7 @@ export default function AdvisorPanel({ projectId }: { projectId: number }) {
                   </button>
                   <div>
                     {li.url ? <a href={li.url} target="_blank" rel="noreferrer">{li.title}</a> : li.title}
+                    {li.is_gap ? <span className="tag gap">gap</span> : null}
                     {li.source && <span className="tag">{li.source}</span>}
                   </div>
                 </div>

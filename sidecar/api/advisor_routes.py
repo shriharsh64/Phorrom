@@ -39,6 +39,7 @@ class GapRequest(BaseModel):
 
 RESOURCE_STATUSES = {"suggested", "accepted", "done", "dismissed"}
 LEARNING_STATUSES = {"todo", "in_progress", "done"}
+BREAKTHROUGH_STATUSES = {"suggested", "exploring", "done", "dismissed"}
 
 
 def build_advisor_router() -> APIRouter:
@@ -82,6 +83,16 @@ def build_advisor_router() -> APIRouter:
         db.audit("user", "learning_status", {"id": item_id, "status": body.status})
         # Surface any concept that just became mastered (feeds back to ideation).
         return {"item": updated, "mastered": db.mastered_concepts(updated["project_id"])}
+
+    @router.post("/advisor/breakthroughs/{item_id}/status")
+    async def set_breakthrough_status(item_id: int, body: StatusUpdate, request: Request) -> dict:
+        if body.status not in BREAKTHROUGH_STATUSES:
+            raise HTTPException(status_code=422, detail=f"invalid status '{body.status}'")
+        db: Database = request.app.state.db
+        if not db.set_breakthrough_status(item_id, body.status):
+            raise HTTPException(status_code=404, detail="breakthrough not found")
+        db.audit("user", "breakthrough_status", {"id": item_id, "status": body.status})
+        return {"id": item_id, "status": body.status}
 
     @router.post("/ideation/gaps")
     async def record_gap(body: GapRequest, request: Request) -> dict:

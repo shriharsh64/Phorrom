@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -145,10 +145,36 @@ CREATE TABLE IF NOT EXISTS learning_items (
     source       TEXT,                           -- youtube|arxiv|freecodecamp|mdn|docs|other
     rationale    TEXT,
     prereq_order INTEGER NOT NULL DEFAULT 0,      -- lower = earlier (prerequisite-first)
+    is_gap       INTEGER NOT NULL DEFAULT 0,      -- 1 = targets a gap (weighted higher)
+    priority     REAL NOT NULL DEFAULT 0,         -- higher = study sooner within its prereq tier
     status       TEXT NOT NULL DEFAULT 'todo',    -- todo|in_progress|done
     created_at   REAL NOT NULL
 );
+
+-- Breakthrough opportunities: high-leverage improvements where progress yields a concrete
+-- project-goal benefit (business, speed, maintainability/ease-of-change, scalability, cost,
+-- UX, or learning). Ranked by a score derived from impact, benefit breadth, and effort.
+CREATE TABLE IF NOT EXISTS breakthroughs (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id       INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    title            TEXT NOT NULL,
+    description      TEXT,
+    benefit_types    TEXT,                        -- json array: business|speed|maintainability|...
+    impact           TEXT,                        -- high|medium|low
+    effort           TEXT,                        -- high|medium|low
+    rationale        TEXT,
+    related_concepts TEXT,                        -- json array of concept names
+    score            REAL NOT NULL DEFAULT 0,
+    status           TEXT NOT NULL DEFAULT 'suggested', -- suggested|exploring|done|dismissed
+    created_at       REAL NOT NULL
+);
 """
+
+# Columns added after the initial v2 release, applied to existing DBs via ALTER (see _migrate).
+_ADDED_COLUMNS: list[tuple[str, str, str]] = [
+    ("learning_items", "is_gap", "INTEGER NOT NULL DEFAULT 0"),
+    ("learning_items", "priority", "REAL NOT NULL DEFAULT 0"),
+]
 
 
 class Database:
@@ -160,12 +186,19 @@ class Database:
         self._bootstrap()
 
     def _bootstrap(self) -> None:
-        self.conn.executescript(SCHEMA)
+        self.conn.executescript(SCHEMA)  # creates any missing tables
+        self._migrate()                  # adds any missing columns to pre-existing tables
         self.conn.execute(
             "INSERT OR REPLACE INTO meta(key, value) VALUES('schema_version', ?)",
             (str(SCHEMA_VERSION),),
         )
         self.conn.commit()
+
+    def _migrate(self) -> None:
+        for table, column, decl in _ADDED_COLUMNS:
+            cols = {r["name"] for r in self.conn.execute(f"PRAGMA table_info({table})")}
+            if column not in cols:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
     def close(self) -> None:
         self.conn.close()
@@ -358,18 +391,23 @@ class Database:
         source: str | None = None,
         rationale: str | None = None,
         prereq_order: int = 0,
+        is_gap: bool = False,
+        priority: float = 0.0,
     ) -> int:
         cur = self.conn.execute(
             "INSERT INTO learning_items(project_id, concept, title, url, source, rationale,"
-            " prereq_order, status, created_at) VALUES(?,?,?,?,?,?,?, 'todo', ?)",
-            (project_id, concept, title, url, source, rationale, prereq_order, time.time()),
+            " prereq_order, is_gap, priority, status, created_at)"
+            " VALUES(?,?,?,?,?,?,?,?,?, 'todo', ?)",
+            (project_id, concept, title, url, source, rationale, prereq_order,
+             int(is_gap), priority, time.time()),
         )
         self.conn.commit()
         return int(cur.lastrowid)
 
     def list_learning_items(self, project_id: int) -> list[dict]:
         rows = self.conn.execute(
-            "SELECT * FROM learning_items WHERE project_id=? ORDER BY prereq_order, id",
+            "SELECT * FROM learning_items WHERE project_id=?"
+            " ORDER BY prereq_order, priority DESC, id",
             (project_id,),
         ).fetchall()
         return [dict(r) for r in rows]
@@ -407,12 +445,56 @@ class Database:
             self.set_concept_status(project_id, concept, "learning")
         return self.get_learning_item(item_id)
 
+    # --- breakthrough opportunities --------------------------------------------
+    def add_breakthrough(
+        self,
+        project_id: int,
+        title: str,
+        description: str | None = None,
+        benefit_types: list[str] | None = None,
+        impact: str | None = None,
+        effort: str | None = None,
+        rationale: str | None = None,
+        related_concepts: list[str] | None = None,
+        score: float = 0.0,
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO breakthroughs(project_id, title, description, benefit_types, impact,"
+            " effort, rationale, related_concepts, score, status, created_at)"
+            " VALUES(?,?,?,?,?,?,?,?,?, 'suggested', ?)",
+            (project_id, title, description, json.dumps(benefit_types or []), impact, effort,
+             rationale, json.dumps(related_concepts or []), score, time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def list_breakthroughs(self, project_id: int) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM breakthroughs WHERE project_id=? ORDER BY score DESC, id",
+            (project_id,),
+        ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["benefit_types"] = json.loads(d.get("benefit_types") or "[]")
+            d["related_concepts"] = json.loads(d.get("related_concepts") or "[]")
+            out.append(d)
+        return out
+
+    def set_breakthrough_status(self, item_id: int, status: str) -> bool:
+        cur = self.conn.execute(
+            "UPDATE breakthroughs SET status=? WHERE id=?", (status, item_id)
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
     def clear_advisor_outputs(self, project_id: int) -> None:
-        """Remove prior suggestions/learning items for a project before a fresh run.
+        """Remove prior suggestions/learning items/breakthroughs before a fresh run.
 
         Concepts are preserved so mastery/progress survive re-runs.
         """
 
         self.conn.execute("DELETE FROM resource_suggestions WHERE project_id=?", (project_id,))
         self.conn.execute("DELETE FROM learning_items WHERE project_id=?", (project_id,))
+        self.conn.execute("DELETE FROM breakthroughs WHERE project_id=?", (project_id,))
         self.conn.commit()

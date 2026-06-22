@@ -56,6 +56,21 @@ export interface LearningRow {
   source: string | null;
   rationale: string | null;
   prereq_order: number;
+  is_gap: number;
+  priority: number;
+  status: string;
+}
+
+export interface BreakthroughRow {
+  id: number;
+  title: string;
+  description: string | null;
+  benefit_types: string[];
+  impact: string;
+  effort: string;
+  rationale: string | null;
+  related_concepts: string[];
+  score: number;
   status: string;
 }
 
@@ -70,10 +85,12 @@ export interface AdvisorOverview {
   resources: ResourceRow[];
   learning: LearningRow[];
   concepts: ConceptRow[];
+  breakthroughs: BreakthroughRow[];
   progress: {
     resources: { total: number; done: number };
-    learning: { total: number; todo: number; in_progress: number; done: number };
+    learning: { total: number; todo: number; in_progress: number; done: number; gaps: number };
     concepts: { gap: number; learning: number; mastered: number };
+    breakthroughs: { total: number };
   };
 }
 
@@ -107,4 +124,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ status }),
     }),
+  setBreakthroughStatus: (id: number, status: string) =>
+    req(`/advisor/breakthroughs/${id}/status`, { method: "POST", body: JSON.stringify({ status }) }),
 };

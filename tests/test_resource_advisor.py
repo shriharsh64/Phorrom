@@ -11,7 +11,11 @@ import json
 import pytest
 
 from sidecar.capabilities import resource_advisor as advisor
-from sidecar.capabilities.resource_advisor import ProjectContext, parse_result
+from sidecar.capabilities.resource_advisor import (
+    ProjectContext,
+    parse_result,
+    score_breakthrough,
+)
 from sidecar.providers.mock import MockProvider
 from sidecar.providers.registry import ProviderRegistry
 from sidecar.storage.db import Database
@@ -60,6 +64,54 @@ def test_heuristic_incorporates_unmatched_ideation_gap() -> None:
     res = advisor.heuristic_result(ctx, known_gaps=["Kalman filtering"], mastered=[])
     assert any("Kalman filtering" == li.concept for li in res.learning_plan)
     assert "Kalman filtering" in res.detected_gaps
+
+
+# --------------------------------------------------------------------------- coverage + gaps
+
+def test_covers_everything_but_weights_gaps_higher() -> None:
+    ctx = ProjectContext(problem="web ml dashboard", tech=["python", "react", "ml"])
+    res = advisor.heuristic_result(ctx, known_gaps=["ML foundations"], mastered=[])
+    concepts = {li.concept for li in res.learning_plan}
+    # Coverage: non-gap domains still present (web/react foundations).
+    assert any("Web fundamentals" in c for c in concepts)
+    # The gap concept is flagged and prioritized above coverage items.
+    gap_items = [li for li in res.learning_plan if li.concept == "ML foundations"]
+    assert gap_items and all(li.is_gap for li in gap_items)
+    assert all(li.priority > 1.0 for li in gap_items)
+    # Gaps get extra ideation/training links (arxiv prior-art among them).
+    assert any(li.source == "arxiv" for li in gap_items)
+
+
+def test_gaps_outrank_coverage_within_same_prereq_tier() -> None:
+    ctx = ProjectContext(problem="x", tech=["python", "ml"])
+    res = advisor.heuristic_result(ctx, known_gaps=["ML foundations"], mastered=[])
+    # learning_plan is already sorted (prereq_order, -priority); find tier-2 ordering.
+    tier2 = [li for li in res.learning_plan if li.prereq_order == 2]
+    if len({li.is_gap for li in tier2}) > 1:
+        first_gap_idx = next(i for i, li in enumerate(tier2) if li.is_gap)
+        first_cov_idx = next(i for i, li in enumerate(tier2) if not li.is_gap)
+        assert first_gap_idx < first_cov_idx
+
+
+# --------------------------------------------------------------------------- breakthroughs
+
+def test_breakthroughs_generated_scored_and_ranked() -> None:
+    ctx = ProjectContext(problem="smart irrigation", tech=["python", "iot"])
+    res = advisor.heuristic_result(ctx, known_gaps=["PID control"], mastered=[])
+    assert res.breakthroughs, "should always surface breakthrough opportunities"
+    scores = [b.score for b in res.breakthroughs]
+    assert scores == sorted(scores, reverse=True), "ranked by score desc"
+    # Benefit types span the project-goal categories the user asked for.
+    seen = {bt for b in res.breakthroughs for bt in b.benefit_types}
+    assert {"business", "speed", "maintainability"} & seen
+    # A gap produces a learning/business breakthrough tied to that concept.
+    assert any("PID control" in b.related_concepts for b in res.breakthroughs)
+
+
+def test_score_breakthrough_rewards_impact_and_breadth_penalizes_effort() -> None:
+    high = score_breakthrough("high", "low", ["business", "speed"])
+    low = score_breakthrough("low", "high", ["ux"])
+    assert high > low
 
 
 # --------------------------------------------------------------------------- orchestration

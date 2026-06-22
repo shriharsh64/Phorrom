@@ -51,5 +51,23 @@ button:disabled { opacity: 0.5; cursor: default; }
 .learn-item a { color: #58a6ff; text-decoration: none; }
 .tag { font-size: 10px; background: #30363d; color: #adbac7; border-radius: 4px; padding: 1px 6px; margin-left: 6px; text-transform: uppercase; }
 .tag.free { background: #1b3a2b; color: #56d364; }
+.tag.gap { background: #3a2b1b; color: #e3a008; }
+
+/* --- breakthroughs --- */
+.breakthroughs { margin-bottom: 18px; }
+.breakthroughs h2 { font-size: 15px; margin: 0 0 4px; border-bottom: 1px solid #30363d; padding-bottom: 6px; }
+.bt-card { display: flex; gap: 10px; align-items: flex-start; background: #161b22; border: 1px solid #30363d; border-left: 3px solid #1f6feb; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+.bt-card.done { border-left-color: #238636; opacity: 0.7; }
+.bt-card.exploring { border-left-color: #d29922; }
+.bt-card.dismissed { opacity: 0.45; border-left-color: #6e7681; }
+.bt-body { flex: 1; }
+.bt-title { font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; gap: 10px; }
+.bt-score { font-size: 11px; color: #8b949e; font-weight: 400; white-space: nowrap; }
+.bt-tags { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
+.tag.benefit { background: #1f2d3d; color: #79c0ff; }
+.tag.benefit.business { background: #2d1f3d; color: #d2a8ff; }
+.tag.benefit.speed { background: #3a2b1b; color: #ffa657; }
+.tag.benefit.maintainability { background: #1b3a2b; color: #56d364; }
+.tag.benefit.cost { background: #3a1b2b; color: #ff7b9c; }
 
 @media (max-width: 680px) { .advisor-cols { grid-template-columns: 1fr; } }
