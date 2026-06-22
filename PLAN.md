@@ -136,7 +136,8 @@ dynamic workflow).
 - [x] Bundle a standalone sidecar (PyInstaller, 111MB, sklearn/scipy/pulp included) — verified boots
 - [x] `tauri build` **NSIS installer** (`Phorrom_0.1.0_x64-setup.exe`, 113MB) — release app verified to
       auto-launch the bundled sidecar + create its DB under app-data
-- [ ] OS-keychain secret storage (keyring) + settings UI for provider keys — TODO
+- [x] OS-keychain secret storage (`keyring`) + Settings UI — keys stored in Credential Manager
+      and applied to the running sidecar via /providers/keys (no restart, no env vars needed)
 - [ ] Google Drive backup/restore — **BLOCKED**: needs OAuth client credentials (user-created)
 - **DoD:** clean machine can install, run, back up to Drive, restore.
 

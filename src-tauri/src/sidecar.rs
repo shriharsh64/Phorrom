@@ -93,6 +93,7 @@ pub fn spawn(app: &AppHandle) -> Option<Child> {
         c
     };
 
+    crate::secrets::inject_secrets(&mut cmd); // pass keychain-stored provider keys to the sidecar
     no_window(&mut cmd);
     match cmd.spawn() {
         Ok(child) => {

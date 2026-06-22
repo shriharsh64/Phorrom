@@ -264,6 +264,11 @@ export const api = {
   health: () => req<{ status: string }>("/health"),
   providers: () => req<{ providers: ProviderInfo[] }>("/providers"),
   dashboard: () => req<DashboardData>("/dashboard"),
+  setProviderKeys: (keys: { gemini?: string; groq?: string; openrouter?: string }) =>
+    req<{ providers: ProviderInfo[] }>("/providers/keys", {
+      method: "POST",
+      body: JSON.stringify(keys),
+    }),
   mlStatus: () => req<MlStatus>("/ml/status"),
   mlTrain: () => req<{ trained: boolean; metrics: MlMetrics }>("/ml/train", { method: "POST" }),
 

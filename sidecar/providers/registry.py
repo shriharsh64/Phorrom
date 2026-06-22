@@ -17,6 +17,10 @@ class ProviderRegistry:
     def get(self, name: str) -> Provider | None:
         return self._providers.get(name)
 
+    def replace(self, provider: Provider) -> None:
+        """Swap in a freshly-configured adapter (e.g. after a key change) at runtime."""
+        self._providers[provider.name] = provider
+
     def names(self) -> list[str]:
         return list(self._providers)
 

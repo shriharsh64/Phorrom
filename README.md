@@ -39,8 +39,10 @@ sidecar/.venv/Scripts/python -m pip install -r sidecar/requirements.txt
 ```
 
 ### Provider API keys (all optional — the app runs on the mock/Ollama with none)
-Set as environment variables before launching the sidecar; missing keys simply disable that
-provider. They will move to the OS keychain once the Tauri shell lands.
+In the **desktop app**, add keys in the **Settings** tab — they're stored in the OS keychain
+(Windows Credential Manager / macOS Keychain / libsecret), injected into the sidecar on launch,
+and applied live via `/providers/keys`. For the browser/sidecar dev flow you can instead set
+environment variables before launching the sidecar; missing keys simply disable that provider.
 
 | Env var | Provider | Free key from |
 |---|---|---|

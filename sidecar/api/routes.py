@@ -12,8 +12,18 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from ..providers.base import Message, ProviderError
+from ..providers.gemini import GeminiProvider
+from ..providers.openai_compat import groq_provider, openrouter_provider
 from ..providers.registry import ProviderRegistry
 from ..storage.db import Database
+
+
+class KeysUpdate(BaseModel):
+    """Provider keys to apply at runtime. None = leave unchanged; "" = clear."""
+
+    gemini: str | None = None
+    groq: str | None = None
+    openrouter: str | None = None
 
 
 class ChatRequest(BaseModel):
@@ -42,6 +52,20 @@ def build_router() -> APIRouter:
     @router.get("/providers")
     async def providers(request: Request) -> dict:
         registry: ProviderRegistry = request.app.state.registry
+        return {"providers": await registry.discover()}
+
+    @router.post("/providers/keys")
+    async def set_provider_keys(body: KeysUpdate, request: Request) -> dict:
+        registry: ProviderRegistry = request.app.state.registry
+        if body.gemini is not None:
+            registry.replace(GeminiProvider(api_key=body.gemini or None))
+        if body.groq is not None:
+            registry.replace(groq_provider(body.groq or None))
+        if body.openrouter is not None:
+            registry.replace(openrouter_provider(body.openrouter or None))
+        request.app.state.db.audit("user", "set_provider_keys",
+                                   {"changed": [k for k in ("gemini", "groq", "openrouter")
+                                                if getattr(body, k) is not None]})
         return {"providers": await registry.discover()}
 
     @router.get("/providers/health")
