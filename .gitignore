@@ -1,0 +1,47 @@
+# --- Node / frontend ---
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# --- Rust / Tauri ---
+src-tauri/target/
+**/*.rs.bk
+
+# --- Python sidecar ---
+sidecar/.venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# --- ML artifacts & local data (never commit) ---
+models/
+*.onnx
+*.pt
+*.pth
+*.ckpt
+mlruns/
+runs/
+chroma/
+*.sqlite
+*.sqlite3
+*.db
+
+# --- Secrets (must NEVER be committed) ---
+.env
+.env.*
+*.key
+*.pem
+secrets.*
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
