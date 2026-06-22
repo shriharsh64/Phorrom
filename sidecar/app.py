@@ -10,6 +10,7 @@ Run standalone for dev:
 
 from __future__ import annotations
 
+import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -17,6 +18,7 @@ from .api.advisor_routes import build_advisor_router
 from .api.ideation_routes import build_ideation_router
 from .api.orchestrator_routes import build_orchestrator_router
 from .api.phase2_routes import build_phase2_router
+from .api.research_routes import build_research_router
 from .api.routes import build_router
 from .config import Config
 from .providers.base import Provider
@@ -51,6 +53,8 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     app.state.cfg = cfg
     app.state.db = db
     app.state.registry = registry
+    # Factory for outbound HTTP (research sources). Tests replace it with a MockTransport client.
+    app.state.http_client_factory = lambda: httpx.AsyncClient()
 
     async def require_auth(authorization: str | None = Header(default=None)) -> None:
         if cfg.auth_token is None:
@@ -64,6 +68,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     app.include_router(build_phase2_router(), dependencies=[Depends(require_auth)])
     app.include_router(build_orchestrator_router(), dependencies=[Depends(require_auth)])
     app.include_router(build_ideation_router(), dependencies=[Depends(require_auth)])
+    app.include_router(build_research_router(), dependencies=[Depends(require_auth)])
     return app
 
 

@@ -116,8 +116,8 @@ dynamic workflow).
 
 ### Phase 4 — ML & advanced  (partially blocked)
 - [ ] Token/quality estimators (heuristic → LightGBM/PyTorch); priority net → ONNX — codeable
-- [ ] Contextual-bandit router (Thompson sampling) — codeable (interface already in place)
-- [ ] Patent/prior-art research (Semantic Scholar + arXiv) — codeable (needs network at runtime)
+- [x] Contextual-bandit router (Thompson sampling) — DONE (learns, persists, feeds budgeter)
+- [x] Patent/prior-art research (Semantic Scholar + arXiv) — DONE (grounded, no fabrication, UI)
 - [ ] IEEE/ACM/APA doc generation — **BLOCKED**: needs Pandoc + LaTeX (not installed)
 - [ ] Multimodal input — **BLOCKED**: needs Tesseract OCR + whisper.cpp (not installed)
 - **DoD:** predictions feed scheduling; a compliant paper generates from real project data.

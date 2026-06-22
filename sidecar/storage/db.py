@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -229,6 +229,32 @@ CREATE TABLE IF NOT EXISTS bandit_arms (
     beta       REAL NOT NULL DEFAULT 1.0,
     updates    INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (provider, model, task_type)
+);
+
+-- Prior-art / patent research (capability #4). Each row is a real retrieved result (never
+-- fabricated); summaries are grounded only in these rows and cite them by index.
+CREATE TABLE IF NOT EXISTS research_results (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    query       TEXT NOT NULL,
+    source      TEXT NOT NULL,                   -- arxiv|semantic_scholar|google_patents
+    title       TEXT NOT NULL,
+    authors     TEXT,                            -- json array
+    year        INTEGER,
+    url         TEXT,
+    abstract    TEXT,
+    created_at  REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS research_summaries (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    query       TEXT NOT NULL,
+    summary     TEXT,
+    white_space TEXT,
+    n_results   INTEGER NOT NULL DEFAULT 0,
+    grounded    INTEGER NOT NULL DEFAULT 1,      -- 0 if heuristic/ungrounded fallback was used
+    created_at  REAL NOT NULL
 );
 """
 
@@ -764,6 +790,56 @@ class Database:
             "SELECT *, alpha/(alpha+beta) AS mean FROM bandit_arms ORDER BY provider, model, task_type"
         ).fetchall()
         return [dict(r) for r in rows]
+
+    # --- prior-art research (capability #4) ------------------------------------
+    def add_research_result(
+        self, project_id: int, query: str, source: str, title: str,
+        authors: list[str] | None, year: int | None, url: str | None, abstract: str | None,
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO research_results(project_id, query, source, title, authors, year, url,"
+            " abstract, created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+            (project_id, query, source, title, json.dumps(authors or []), year, url, abstract,
+             time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def list_research_results(self, project_id: int, query: str | None = None) -> list[dict]:
+        if query is None:
+            rows = self.conn.execute(
+                "SELECT * FROM research_results WHERE project_id=? ORDER BY id DESC", (project_id,)
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM research_results WHERE project_id=? AND query=? ORDER BY id DESC",
+                (project_id, query),
+            ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["authors"] = json.loads(d.get("authors") or "[]")
+            out.append(d)
+        return out
+
+    def add_research_summary(
+        self, project_id: int, query: str, summary: str | None, white_space: str | None,
+        n_results: int, grounded: bool,
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO research_summaries(project_id, query, summary, white_space, n_results,"
+            " grounded, created_at) VALUES(?,?,?,?,?,?,?)",
+            (project_id, query, summary, white_space, n_results, int(grounded), time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def latest_research_summary(self, project_id: int) -> dict | None:
+        row = self.conn.execute(
+            "SELECT * FROM research_summaries WHERE project_id=? ORDER BY id DESC LIMIT 1",
+            (project_id,),
+        ).fetchone()
+        return dict(row) if row else None
 
     # --- governed file writes (capability #9) ----------------------------------
     def add_pending_write(

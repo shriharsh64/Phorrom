@@ -176,6 +176,33 @@ export interface OrchestrateResult {
   outputs: Record<string, string>;
 }
 
+export interface ResearchResultRow {
+  id?: number;
+  source: string;
+  title: string;
+  authors: string[];
+  year: number | null;
+  url: string | null;
+  abstract: string | null;
+}
+
+export interface ResearchSummary {
+  query: string;
+  summary: string | null;
+  white_space: string | null;
+  n_results: number;
+  grounded: number | boolean;
+}
+
+export interface ResearchReport {
+  query: string;
+  results: ResearchResultRow[];
+  summary: string | null;
+  white_space: string | null;
+  n_results: number;
+  grounded: boolean;
+}
+
 export interface IdeaRow {
   id: number;
   title: string;
@@ -219,6 +246,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ project_id, task, budget, execute }),
     }),
+
+  priorArt: (project_id: number, query: string) =>
+    req<ResearchReport>("/research/prior-art", {
+      method: "POST",
+      body: JSON.stringify({ project_id, query }),
+    }),
+  researchResults: (project_id: number) =>
+    req<{ results: ResearchResultRow[]; summary: ResearchSummary | null }>(
+      `/research/results?project_id=${project_id}`,
+    ),
 
   ideate: (project_id: number, prompt?: string) =>
     req<{ ideas: IdeaRow[] }>("/ideation/ideate", {
