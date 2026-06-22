@@ -65,3 +65,4 @@ sidecar/Release/
 credentials.json
 client_secret*.json
 *.exe
+google_token.json

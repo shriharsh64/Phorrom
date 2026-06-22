@@ -104,5 +104,13 @@ TinyTeX is expected at the repo root (`TinyTeX/bin/windows`), and the whisper CL
 `sidecar/Release/`. These are **not** bundled into the installer yet — install them (or set the
 env overrides) when running. `PHORROM_ROOT` overrides the base dir used for repo-relative lookups.
 
+## Cloud backup (Google Drive)
+The **Settings** tab connects one Google account (installed-app loopback OAuth using
+`credentials.json` at the project root) and backs up the SQLite DB + generated docs as an
+**encrypted** snapshot to a `Phorrom Backups` Drive folder. Encryption is client-side
+(PBKDF2-HMAC-SHA256 → Fernet) with your passphrase — Drive only ever stores ciphertext; restore
+needs the same passphrase. Overrides: `PHORROM_GOOGLE_CREDENTIALS`, `PHORROM_DATA_DIR` (token
+location). `credentials.json` and `google_token.json` are gitignored — never commit them.
+
 ## License
 TBD.

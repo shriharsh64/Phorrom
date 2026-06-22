@@ -17,6 +17,12 @@ joblib>=1.3            # model persistence
 
 # --- documents (Phase 4 / #5) ---
 jinja2>=3.1            # report templating (rendered to md/docx/pdf via external Pandoc)
+
+# --- cloud backup (Google Drive) ---
+google-auth>=2.0
+google-auth-oauthlib>=1.0   # installed-app loopback OAuth
+google-api-python-client>=2.0
+cryptography>=42.0          # client-side backup encryption (PBKDF2 + Fernet)
 # Native tools used by docs/multimodal are NOT pip deps: Pandoc, TinyTeX (LaTeX),
 # Tesseract, whisper.cpp — discovered at runtime (see sidecar/tools.py). PyInstaller is a
 # build-time tool for packaging the sidecar (not a runtime dependency).

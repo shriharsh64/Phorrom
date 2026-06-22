@@ -139,7 +139,9 @@ dynamic workflow).
       auto-launch the bundled sidecar + create its DB under app-data
 - [x] OS-keychain secret storage (`keyring`) + Settings UI — keys stored in Credential Manager
       and applied to the running sidecar via /providers/keys (no restart, no env vars needed)
-- [ ] Google Drive backup/restore — **BLOCKED**: needs OAuth client credentials (user-created)
+- [x] Google Drive backup/restore — DONE (installed-app loopback OAuth, client-side PBKDF2+Fernet
+      encryption, encrypted snapshots to a "Phorrom Backups" folder, restore; backup↔restore cycle
+      tested offline against a fake Drive). Interactive sign-in needs the user's browser consent.
 - **DoD:** clean machine can install, run, back up to Drive, restore.
 
 ---

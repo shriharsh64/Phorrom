@@ -14,6 +14,19 @@ export interface ProviderInfo {
   models: string[];
 }
 
+export interface CloudStatus {
+  connected: boolean;
+  email: string | null;
+  credentials_present: boolean;
+}
+
+export interface Snapshot {
+  id: string;
+  name: string;
+  size?: string | number;
+  createdTime?: string;
+}
+
 export interface DocResult {
   format: string;
   style: string;
@@ -285,6 +298,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(keys),
     }),
+
+  cloudStatus: () => req<CloudStatus>("/cloud/status"),
+  cloudConnect: () => req<{ ok: boolean; email?: string; error?: string }>("/cloud/connect", { method: "POST" }),
+  cloudDisconnect: () => req<{ ok: boolean }>("/cloud/disconnect", { method: "POST" }),
+  cloudBackup: (passphrase: string) =>
+    req<{ ok: boolean; error?: string; snapshot?: Snapshot }>("/cloud/backup", { method: "POST", body: JSON.stringify({ passphrase }) }),
+  cloudSnapshots: () => req<{ ok: boolean; snapshots: Snapshot[] }>("/cloud/snapshots"),
+  cloudRestore: (file_id: string, passphrase: string) =>
+    req<{ ok: boolean; error?: string; restored?: string[]; note?: string }>("/cloud/restore", { method: "POST", body: JSON.stringify({ file_id, passphrase }) }),
 
   toolsStatus: () => req<Record<string, string | null>>("/tools/status"),
   generateDoc: (project_id: number, format: string, style: string, title?: string) =>
