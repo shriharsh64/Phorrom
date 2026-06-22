@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -269,6 +269,20 @@ CREATE TABLE IF NOT EXISTS progress_assessments (
     recommendations TEXT,                         -- json array of strings
     narrative       TEXT,
     created_at      REAL NOT NULL
+);
+
+-- Response-optimization log (capability #10). Each row is one optimize run: the self-eval
+-- score, how many regeneration passes it took, and the directives the layer recalibrated to.
+CREATE TABLE IF NOT EXISTS response_evaluations (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+    prompt      TEXT NOT NULL,
+    score       REAL NOT NULL DEFAULT 0,
+    relevance   REAL,
+    depth_fit   REAL,
+    iterations  INTEGER NOT NULL DEFAULT 1,
+    directives  TEXT,
+    created_at  REAL NOT NULL
 );
 """
 
@@ -881,6 +895,19 @@ class Database:
         for f in ("milestones", "risks", "recommendations"):
             d[f] = json.loads(d.get(f) or "[]")
         return d
+
+    # --- response optimization log (capability #10) ----------------------------
+    def add_response_evaluation(
+        self, project_id: int | None, prompt: str, score: float, relevance: float,
+        depth_fit: float, iterations: int, directives: str | None,
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO response_evaluations(project_id, prompt, score, relevance, depth_fit,"
+            " iterations, directives, created_at) VALUES(?,?,?,?,?,?,?,?)",
+            (project_id, prompt, score, relevance, depth_fit, iterations, directives, time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
 
     # --- governed file writes (capability #9) ----------------------------------
     def add_pending_write(

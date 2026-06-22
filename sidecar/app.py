@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api.advisor_routes import build_advisor_router
 from .api.ideation_routes import build_ideation_router
+from .api.optimize_routes import build_optimize_router
 from .api.orchestrator_routes import build_orchestrator_router
 from .api.phase2_routes import build_phase2_router
 from .api.research_routes import build_research_router
@@ -69,6 +70,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     app.include_router(build_orchestrator_router(), dependencies=[Depends(require_auth)])
     app.include_router(build_ideation_router(), dependencies=[Depends(require_auth)])
     app.include_router(build_research_router(), dependencies=[Depends(require_auth)])
+    app.include_router(build_optimize_router(), dependencies=[Depends(require_auth)])
     return app
 
 

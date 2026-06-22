@@ -119,6 +119,8 @@ dynamic workflow).
 - [x] Contextual-bandit router (Thompson sampling) — DONE (learns, persists, feeds budgeter)
 - [x] Patent/prior-art research (Semantic Scholar + arXiv) — DONE (grounded, no fabrication, UI)
 - [x] Progress Assessment Engine (#7) — DONE (non-binary milestone quality, risks, next steps, UI)
+- [x] Response Optimization Layer (#10) — DONE (self-eval relevance/depth + re-steer loop, Chat toggle)
+- **All 10 core capabilities now implemented.**
 - [ ] IEEE/ACM/APA doc generation — **BLOCKED**: needs Pandoc + LaTeX (not installed)
 - [ ] Multimodal input — **BLOCKED**: needs Tesseract OCR + whisper.cpp (not installed)
 - **DoD:** predictions feed scheduling; a compliant paper generates from real project data.

@@ -23,6 +23,15 @@ export interface ChatResult {
   latency_ms: number;
 }
 
+export interface OptimizeResult {
+  text: string;
+  score: number;
+  relevance: number;
+  depth_fit: number;
+  iterations: number;
+  directives: string;
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -283,6 +292,12 @@ export const api = {
     req<ChatResult>("/chat", {
       method: "POST",
       body: JSON.stringify({ messages, provider, model }),
+    }),
+
+  optimize: (prompt: string, depth: string, provider: string, model: string, project_id?: number) =>
+    req<OptimizeResult>("/optimize", {
+      method: "POST",
+      body: JSON.stringify({ prompt, depth, provider, model, project_id }),
     }),
 
   advisorRecommend: (project_id: number, context: AdvisorContext, provider = "mock", model = "mock-small") =>

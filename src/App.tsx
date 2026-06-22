@@ -45,6 +45,8 @@ export default function App() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [optimize, setOptimize] = useState(false);
+  const [depth, setDepth] = useState("standard");
   const bottom = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -73,15 +75,21 @@ export default function App() {
     setTurns((t) => [...t, userTurn]);
     setInput("");
     try {
-      const res = await api.chat(history, provider, model);
-      setTurns((t) => [
-        ...t,
-        {
+      if (optimize) {
+        const r = await api.optimize(text, depth, provider, model, projectId ?? undefined);
+        setTurns((t) => [...t, {
+          role: "assistant",
+          content: r.text,
+          meta: `optimized · score ${r.score} · ${r.iterations} pass(es) · relevance ${r.relevance}`,
+        }]);
+      } else {
+        const res = await api.chat(history, provider, model);
+        setTurns((t) => [...t, {
           role: "assistant",
           content: res.text,
           meta: `${res.provider}/${res.model} · ${res.tokens_in}+${res.tokens_out} tok · ${Math.round(res.latency_ms)}ms`,
-        },
-      ]);
+        }]);
+      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -130,6 +138,16 @@ export default function App() {
               </option>
             ))}
           </select>
+          <label className="opt-toggle" title="Self-evaluate & recalibrate the response (capability #10)">
+            <input type="checkbox" checked={optimize} onChange={(e) => setOptimize(e.target.checked)} /> optimize
+          </label>
+          {optimize && (
+            <select value={depth} onChange={(e) => setDepth(e.target.value)}>
+              <option value="brief">brief</option>
+              <option value="standard">standard</option>
+              <option value="deep">deep</option>
+            </select>
+          )}
         </div>
       </header>
 
