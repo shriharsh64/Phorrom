@@ -4,6 +4,10 @@ dist/
 dist-ssr/
 .vite/
 *.local
+# tsc -b composite build artifacts
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
 
 # --- Rust / Tauri ---
 src-tauri/target/
