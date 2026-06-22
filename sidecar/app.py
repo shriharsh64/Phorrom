@@ -13,6 +13,7 @@ from __future__ import annotations
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from .api.advisor_routes import build_advisor_router
 from .api.routes import build_router
 from .config import Config
 from .providers.base import Provider
@@ -56,6 +57,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
             raise HTTPException(status_code=401, detail="invalid or missing token")
 
     app.include_router(build_router(), dependencies=[Depends(require_auth)])
+    app.include_router(build_advisor_router(), dependencies=[Depends(require_auth)])
     return app
 
 

@@ -35,6 +35,55 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return resp.json() as Promise<T>;
 }
 
+// --- Resource & Tooling Advisor (#3) ---------------------------------------
+
+export interface ResourceRow {
+  id: number;
+  kind: string;
+  name: string;
+  stage: string | null;
+  url: string | null;
+  is_free: number;
+  rationale: string | null;
+  status: string;
+}
+
+export interface LearningRow {
+  id: number;
+  concept: string;
+  title: string;
+  url: string | null;
+  source: string | null;
+  rationale: string | null;
+  prereq_order: number;
+  status: string;
+}
+
+export interface ConceptRow {
+  id: number;
+  name: string;
+  status: "gap" | "learning" | "mastered";
+  origin: string;
+}
+
+export interface AdvisorOverview {
+  resources: ResourceRow[];
+  learning: LearningRow[];
+  concepts: ConceptRow[];
+  progress: {
+    resources: { total: number; done: number };
+    learning: { total: number; todo: number; in_progress: number; done: number };
+    concepts: { gap: number; learning: number; mastered: number };
+  };
+}
+
+export interface AdvisorContext {
+  problem?: string;
+  ideas?: string[];
+  task_types?: string[];
+  tech?: string[];
+}
+
 export const api = {
   health: () => req<{ status: string }>("/health"),
   providers: () => req<{ providers: ProviderInfo[] }>("/providers"),
@@ -42,5 +91,20 @@ export const api = {
     req<ChatResult>("/chat", {
       method: "POST",
       body: JSON.stringify({ messages, provider, model }),
+    }),
+
+  advisorRecommend: (project_id: number, context: AdvisorContext, provider = "mock", model = "mock-small") =>
+    req<{ overview: AdvisorOverview }>("/advisor/recommend", {
+      method: "POST",
+      body: JSON.stringify({ project_id, context, provider, model }),
+    }),
+  advisorOverview: (project_id: number) =>
+    req<AdvisorOverview>(`/advisor/overview?project_id=${project_id}`),
+  setResourceStatus: (id: number, status: string) =>
+    req(`/advisor/resources/${id}/status`, { method: "POST", body: JSON.stringify({ status }) }),
+  setLearningStatus: (id: number, status: string) =>
+    req<{ mastered: string[] }>(`/advisor/learning/${id}/status`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
     }),
 };

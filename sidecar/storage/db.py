@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -105,6 +105,48 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     provider    TEXT,
     model       TEXT,
     created_at  REAL NOT NULL
+);
+
+-- Shared skill model: the bridge between Ideation (#2) and the Resource Advisor (#3).
+-- A concept starts as a 'gap' (often surfaced during ideation), becomes 'learning' once the
+-- user starts the related material, and 'mastered' once done. Mastered concepts are fed back
+-- to ideation so the engine can reason at a higher level next time.
+CREATE TABLE IF NOT EXISTS concepts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'gap',     -- gap|learning|mastered
+    origin      TEXT NOT NULL DEFAULT 'advisor', -- ideation|advisor|user
+    notes       TEXT,
+    created_at  REAL NOT NULL,
+    UNIQUE(project_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS resource_suggestions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    stage       TEXT,                            -- e.g. ideation|prototyping|deployment
+    kind        TEXT NOT NULL,                   -- library|api|dataset|hardware|service|tool
+    name        TEXT NOT NULL,
+    description TEXT,
+    url         TEXT,
+    is_free     INTEGER NOT NULL DEFAULT 1,
+    rationale   TEXT,
+    status      TEXT NOT NULL DEFAULT 'suggested', -- suggested|accepted|done|dismissed
+    created_at  REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS learning_items (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id   INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    concept      TEXT NOT NULL,
+    title        TEXT NOT NULL,
+    url          TEXT,
+    source       TEXT,                           -- youtube|arxiv|freecodecamp|mdn|docs|other
+    rationale    TEXT,
+    prereq_order INTEGER NOT NULL DEFAULT 0,      -- lower = earlier (prerequisite-first)
+    status       TEXT NOT NULL DEFAULT 'todo',    -- todo|in_progress|done
+    created_at   REAL NOT NULL
 );
 """
 
@@ -212,3 +254,165 @@ class Database:
                 (provider,),
             ).fetchone()
         return int(row["t"])
+
+    # --- concepts (shared skill model / ideation bridge) -----------------------
+    def upsert_concept(
+        self,
+        project_id: int,
+        name: str,
+        status: str = "gap",
+        origin: str = "advisor",
+        notes: str | None = None,
+    ) -> int:
+        """Insert a concept, or keep the existing one (never downgrade a mastered concept)."""
+
+        name = name.strip()
+        existing = self.conn.execute(
+            "SELECT id, status FROM concepts WHERE project_id=? AND name=?",
+            (project_id, name),
+        ).fetchone()
+        if existing is not None:
+            # Only fill in notes if missing; preserve a higher status (gap < learning < mastered).
+            if notes:
+                self.conn.execute(
+                    "UPDATE concepts SET notes=COALESCE(notes, ?) WHERE id=?",
+                    (notes, existing["id"]),
+                )
+                self.conn.commit()
+            return int(existing["id"])
+        cur = self.conn.execute(
+            "INSERT INTO concepts(project_id, name, status, origin, notes, created_at)"
+            " VALUES(?,?,?,?,?,?)",
+            (project_id, name, status, origin, notes, time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def set_concept_status(self, project_id: int, name: str, status: str) -> None:
+        self.conn.execute(
+            "UPDATE concepts SET status=? WHERE project_id=? AND name=?",
+            (status, project_id, name.strip()),
+        )
+        self.conn.commit()
+
+    def list_concepts(self, project_id: int, status: str | None = None) -> list[dict]:
+        if status is None:
+            rows = self.conn.execute(
+                "SELECT * FROM concepts WHERE project_id=? ORDER BY name", (project_id,)
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM concepts WHERE project_id=? AND status=? ORDER BY name",
+                (project_id, status),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def mastered_concepts(self, project_id: int) -> list[str]:
+        rows = self.conn.execute(
+            "SELECT name FROM concepts WHERE project_id=? AND status='mastered' ORDER BY name",
+            (project_id,),
+        ).fetchall()
+        return [r["name"] for r in rows]
+
+    # --- resource suggestions --------------------------------------------------
+    def add_resource_suggestion(
+        self,
+        project_id: int,
+        kind: str,
+        name: str,
+        stage: str | None = None,
+        description: str | None = None,
+        url: str | None = None,
+        is_free: bool = True,
+        rationale: str | None = None,
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO resource_suggestions(project_id, stage, kind, name, description, url,"
+            " is_free, rationale, status, created_at) VALUES(?,?,?,?,?,?,?,?, 'suggested', ?)",
+            (project_id, stage, kind, name, description, url, int(is_free), rationale, time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def list_resource_suggestions(self, project_id: int) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM resource_suggestions WHERE project_id=? ORDER BY kind, id",
+            (project_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def set_resource_status(self, item_id: int, status: str) -> bool:
+        cur = self.conn.execute(
+            "UPDATE resource_suggestions SET status=? WHERE id=?", (status, item_id)
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    # --- learning items --------------------------------------------------------
+    def add_learning_item(
+        self,
+        project_id: int,
+        concept: str,
+        title: str,
+        url: str | None = None,
+        source: str | None = None,
+        rationale: str | None = None,
+        prereq_order: int = 0,
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO learning_items(project_id, concept, title, url, source, rationale,"
+            " prereq_order, status, created_at) VALUES(?,?,?,?,?,?,?, 'todo', ?)",
+            (project_id, concept, title, url, source, rationale, prereq_order, time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def list_learning_items(self, project_id: int) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM learning_items WHERE project_id=? ORDER BY prereq_order, id",
+            (project_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_learning_item(self, item_id: int) -> dict | None:
+        row = self.conn.execute(
+            "SELECT * FROM learning_items WHERE id=?", (item_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def set_learning_status(self, item_id: int, status: str) -> dict | None:
+        """Set a learning item's status and reconcile the parent concept's mastery.
+
+        Returns the updated item dict (or None if it doesn't exist). A concept becomes
+        'mastered' once all its learning items are done, 'learning' once any is started.
+        """
+
+        item = self.get_learning_item(item_id)
+        if item is None:
+            return None
+        self.conn.execute(
+            "UPDATE learning_items SET status=? WHERE id=?", (status, item_id)
+        )
+        self.conn.commit()
+
+        project_id, concept = item["project_id"], item["concept"]
+        rows = self.conn.execute(
+            "SELECT status FROM learning_items WHERE project_id=? AND concept=?",
+            (project_id, concept),
+        ).fetchall()
+        statuses = [r["status"] for r in rows]
+        if statuses and all(s == "done" for s in statuses):
+            self.set_concept_status(project_id, concept, "mastered")
+        elif any(s in ("in_progress", "done") for s in statuses):
+            self.set_concept_status(project_id, concept, "learning")
+        return self.get_learning_item(item_id)
+
+    def clear_advisor_outputs(self, project_id: int) -> None:
+        """Remove prior suggestions/learning items for a project before a fresh run.
+
+        Concepts are preserved so mastery/progress survive re-runs.
+        """
+
+        self.conn.execute("DELETE FROM resource_suggestions WHERE project_id=?", (project_id,))
+        self.conn.execute("DELETE FROM learning_items WHERE project_id=?", (project_id,))
+        self.conn.commit()

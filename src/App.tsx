@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type Message, type ProviderInfo } from "./lib/api";
+import AdvisorPanel from "./components/AdvisorPanel";
 
 interface Turn extends Message {
   meta?: string;
 }
 
+type Tab = "chat" | "advisor";
+
 export default function App() {
+  const [tab, setTab] = useState<Tab>("chat");
+  // Single demo project until the project picker lands in Phase 2.
+  const projectId = 1;
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [provider, setProvider] = useState("mock");
   const [model, setModel] = useState("mock-small");
@@ -61,7 +67,11 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Phorrom</h1>
-        <div className="controls">
+        <nav className="tabs">
+          <button className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>Chat</button>
+          <button className={tab === "advisor" ? "active" : ""} onClick={() => setTab("advisor")}>Advisor</button>
+        </nav>
+        <div className="controls" style={{ visibility: tab === "chat" ? "visible" : "hidden" }}>
           <select
             value={provider}
             onChange={(e) => {
@@ -87,6 +97,10 @@ export default function App() {
         </div>
       </header>
 
+      {tab === "advisor" ? (
+        <AdvisorPanel projectId={projectId} />
+      ) : (
+        <>
       {error && <div className="error">{error}</div>}
 
       <main className="messages">
@@ -116,6 +130,8 @@ export default function App() {
           {busy ? "…" : "Send"}
         </button>
       </footer>
+      </>
+      )}
     </div>
   );
 }
