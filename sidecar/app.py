@@ -15,6 +15,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api.advisor_routes import build_advisor_router
+from .api.docs_routes import build_docs_router
 from .api.ideation_routes import build_ideation_router
 from .api.ml_routes import build_ml_router
 from .api.optimize_routes import build_optimize_router
@@ -82,6 +83,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     app.include_router(build_research_router(), dependencies=[Depends(require_auth)])
     app.include_router(build_optimize_router(), dependencies=[Depends(require_auth)])
     app.include_router(build_ml_router(), dependencies=[Depends(require_auth)])
+    app.include_router(build_docs_router(), dependencies=[Depends(require_auth)])
     return app
 
 

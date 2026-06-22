@@ -55,3 +55,13 @@ tsconfig.tsbuildinfo
 # PyInstaller + bundled sidecar binary (regenerated, large)
 build/
 src-tauri/binaries/
+
+# Generated documents + bundled native tools/models (large, regenerable)
+generated-docs/
+TinyTeX/
+sidecar/Release/
+
+# secrets + installers (never commit)
+credentials.json
+client_secret*.json
+*.exe

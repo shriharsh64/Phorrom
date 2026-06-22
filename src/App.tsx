@@ -7,12 +7,13 @@ import IdeationPanel from "./components/IdeationPanel";
 import ResearchPanel from "./components/ResearchPanel";
 import DashboardPanel from "./components/DashboardPanel";
 import SettingsPanel from "./components/SettingsPanel";
+import DocsPanel from "./components/DocsPanel";
 
 interface Turn extends Message {
   meta?: string;
 }
 
-type Tab = "chat" | "plan" | "ideation" | "research" | "orchestrator" | "advisor" | "dashboard" | "settings";
+type Tab = "chat" | "plan" | "ideation" | "research" | "orchestrator" | "advisor" | "docs" | "dashboard" | "settings";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("chat");
@@ -110,6 +111,7 @@ export default function App() {
           <button className={tab === "research" ? "active" : ""} onClick={() => setTab("research")}>Research</button>
           <button className={tab === "orchestrator" ? "active" : ""} onClick={() => setTab("orchestrator")}>Orchestrator</button>
           <button className={tab === "advisor" ? "active" : ""} onClick={() => setTab("advisor")}>Advisor</button>
+          <button className={tab === "docs" ? "active" : ""} onClick={() => setTab("docs")}>Docs</button>
           <button className={tab === "dashboard" ? "active" : ""} onClick={() => setTab("dashboard")}>Dashboard</button>
           <button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>Settings</button>
         </nav>
@@ -163,6 +165,8 @@ export default function App() {
         <p className="hint" style={{ marginTop: 40 }}>Loading project…</p>
       ) : tab === "advisor" ? (
         <AdvisorPanel projectId={projectId} />
+      ) : tab === "docs" ? (
+        <DocsPanel projectId={projectId} />
       ) : tab === "plan" ? (
         <PlanPanel projectId={projectId} />
       ) : tab === "ideation" ? (

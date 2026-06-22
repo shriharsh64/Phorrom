@@ -14,6 +14,22 @@ export interface ProviderInfo {
   models: string[];
 }
 
+export interface DocResult {
+  format: string;
+  style: string;
+  path: string;
+  markdown: string;
+  warning: string | null;
+}
+
+export interface MultimodalResult {
+  ok: boolean;
+  text: string;
+  error?: string;
+  engine?: string;
+  model?: string;
+}
+
 export interface MlMetrics {
   n_train: number;
   n_test: number;
@@ -269,6 +285,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(keys),
     }),
+
+  toolsStatus: () => req<Record<string, string | null>>("/tools/status"),
+  generateDoc: (project_id: number, format: string, style: string, title?: string) =>
+    req<DocResult>("/docs/generate", {
+      method: "POST",
+      body: JSON.stringify({ project_id, format, style, title }),
+    }),
+  ocr: (path: string) => req<MultimodalResult>("/multimodal/ocr", { method: "POST", body: JSON.stringify({ path }) }),
+  transcribe: (path: string) => req<MultimodalResult>("/multimodal/transcribe", { method: "POST", body: JSON.stringify({ path }) }),
   mlStatus: () => req<MlStatus>("/ml/status"),
   mlTrain: () => req<{ trained: boolean; metrics: MlMetrics }>("/ml/train", { method: "POST" }),
 

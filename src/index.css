@@ -88,4 +88,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 .metric-bar > span { display: block; height: 100%; background: #58a6ff; }
 .bt-card .status-dot { margin-top: 2px; }
 
+/* --- docs preview --- */
+.doc-preview { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px; max-height: 300px; overflow: auto; font-size: 12px; white-space: pre-wrap; color: #adbac7; margin: 8px 0 0; }
+
 @media (max-width: 680px) { .advisor-cols { grid-template-columns: 1fr; } }

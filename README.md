@@ -90,5 +90,19 @@ sidecar/.venv/Scripts/python -m uvicorn sidecar.app:app --port 8008 --app-dir .
 npm run dev            # open the printed http://localhost:1420
 ```
 
+## Document generation & multimodal (native tools)
+The **Docs** tab generates IEEE/ACM/APA reports from real project data and runs OCR / speech-to-text.
+These shell out to native tools, auto-discovered (env var → PATH → known location):
+
+| Feature | Tool | Discovery / override |
+|---|---|---|
+| md / docx / pdf | Pandoc (+ TinyTeX for PDF) | `PHORROM_PANDOC`, `PHORROM_LATEX_BIN` |
+| OCR | Tesseract | `PHORROM_TESSERACT` |
+| speech-to-text | whisper.cpp + a `ggml-*.bin` model | `PHORROM_WHISPER`, `PHORROM_WHISPER_MODEL` |
+
+TinyTeX is expected at the repo root (`TinyTeX/bin/windows`), and the whisper CLI + model under
+`sidecar/Release/`. These are **not** bundled into the installer yet — install them (or set the
+env overrides) when running. `PHORROM_ROOT` overrides the base dir used for repo-relative lookups.
+
 ## License
 TBD.

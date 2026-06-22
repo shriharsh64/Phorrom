@@ -125,8 +125,9 @@ dynamic workflow).
 - [x] Progress Assessment Engine (#7) — DONE (non-binary milestone quality, risks, next steps, UI)
 - [x] Response Optimization Layer (#10) — DONE (self-eval relevance/depth + re-steer loop, Chat toggle)
 - **All 10 core capabilities now implemented.**
-- [ ] IEEE/ACM/APA doc generation — **BLOCKED**: needs Pandoc + LaTeX (not installed)
-- [ ] Multimodal input — **BLOCKED**: needs Tesseract OCR + whisper.cpp (not installed)
+- [x] IEEE/ACM/APA doc generation — DONE (Jinja2 → Pandoc → md/docx/**pdf via TinyTeX**, grounded;
+      real 154KB PDF verified)
+- [x] Multimodal input — DONE (Tesseract OCR + whisper.cpp tiny.en; both verified live)
 - **DoD:** predictions feed scheduling; a compliant paper generates from real project data.
 
 ### Phase 5 — Sync, polish, packaging
