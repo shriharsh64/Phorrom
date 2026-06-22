@@ -48,5 +48,27 @@ provider. They will move to the OS keychain once the Tauri shell lands.
 | `GROQ_API_KEY` | Groq | console.groq.com |
 | `OPENROUTER_API_KEY` | OpenRouter (`:free` models) | openrouter.ai |
 
+## Running
+
+### Desktop app (Tauri) — recommended
+Requires the Rust toolchain (see Prerequisites). Tauri starts Vite **and** auto-launches the
+Python sidecar (Rust spawns the venv interpreter on 127.0.0.1:8008 and stops it on exit):
+
+```bash
+npm install
+npm run tauri dev      # builds the Rust shell, opens the desktop window
+```
+
+A production bundle (`npm run tauri build`) is WIP — it still needs the sidecar packaged as a
+standalone binary (PyInstaller); for now the dev flow above is the way to run it.
+
+### Browser + sidecar (no Rust needed)
+```bash
+# terminal 1 — sidecar
+sidecar/.venv/Scripts/python -m uvicorn sidecar.app:app --port 8008 --app-dir .
+# terminal 2 — frontend
+npm run dev            # open the printed http://localhost:1420
+```
+
 ## License
 TBD.

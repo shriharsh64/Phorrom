@@ -129,10 +129,14 @@ dynamic workflow).
 - [ ] Multimodal input — **BLOCKED**: needs Tesseract OCR + whisper.cpp (not installed)
 - **DoD:** predictions feed scheduling; a compliant paper generates from real project data.
 
-### Phase 5 — Sync, polish, packaging  (blocked)
+### Phase 5 — Sync, polish, packaging
+- [x] Tauri 2 desktop shell — scaffolded around the React frontend, **compiles** (Rust+MSVC ok)
+- [x] Rust auto-launches the Python sidecar on startup and kills it on exit (`npm run tauri dev`)
+- [x] Dashboards (token ledger, provider health) — done
+- [ ] Bundle a standalone sidecar (PyInstaller) so packaged builds need no venv — TODO
+- [ ] OS-keychain secret storage (keyring) + settings UI for provider keys — TODO
+- [ ] `tauri build` installers (MSI/NSIS) — TODO (toolchain now available)
 - [ ] Google Drive backup/restore — **BLOCKED**: needs OAuth client credentials (user-created)
-- [ ] Dashboards (token ledger, provider health), onboarding, settings — codeable
-- [ ] Cross-platform bundling + installers — **BLOCKED**: needs Rust/Tauri toolchain
 - **DoD:** clean machine can install, run, back up to Drive, restore.
 
 ---
