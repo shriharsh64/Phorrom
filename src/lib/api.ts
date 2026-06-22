@@ -101,9 +101,64 @@ export interface AdvisorContext {
   tech?: string[];
 }
 
+// --- Phase 2: projects, problem, tasks -------------------------------------
+
+export interface Project {
+  id: number;
+  name: string;
+  root_path: string | null;
+}
+
+export interface ProblemRecord {
+  statement: string;
+  scope: string | null;
+  gap: string | null;
+  stakeholders: string[];
+  success_criteria: string[];
+  constraints: string[];
+  assumptions: string[];
+  validation: string | null;
+  clarifying_questions?: string[];
+}
+
+export interface TaskRow {
+  id: number;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: number | null;
+  urgency: number | null;
+  impact: number | null;
+  depends_on: number[];
+  ready?: boolean;
+  blocks?: number;
+  depth?: number;
+}
+
 export const api = {
   health: () => req<{ status: string }>("/health"),
   providers: () => req<{ providers: ProviderInfo[] }>("/providers"),
+
+  listProjects: () => req<{ projects: Project[] }>("/projects"),
+  createProject: (name: string) =>
+    req<Project>("/projects", { method: "POST", body: JSON.stringify({ name }) }),
+
+  defineProblem: (project_id: number, description: string) =>
+    req<{ latest: ProblemRecord }>("/problem/define", {
+      method: "POST",
+      body: JSON.stringify({ project_id, description }),
+    }),
+  latestProblem: (project_id: number) =>
+    req<{ record: ProblemRecord | null }>(`/problem/latest?project_id=${project_id}`),
+
+  listTasks: (project_id: number) => req<{ tasks: TaskRow[] }>(`/tasks?project_id=${project_id}`),
+  createTask: (project_id: number, title: string, urgency?: number, impact?: number) =>
+    req<{ id: number }>("/tasks", {
+      method: "POST",
+      body: JSON.stringify({ project_id, title, urgency, impact }),
+    }),
+  setTaskStatus: (id: number, status: string) =>
+    req(`/tasks/${id}/status`, { method: "POST", body: JSON.stringify({ status }) }),
   chat: (messages: Message[], provider: string, model: string) =>
     req<ChatResult>("/chat", {
       method: "POST",

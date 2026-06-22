@@ -33,6 +33,16 @@ button:disabled { opacity: 0.5; cursor: default; }
 .tabs button { background: transparent; color: #8b949e; padding: 6px 14px; border-radius: 6px; }
 .tabs button.active { background: #161b22; color: #e6edf3; border: 1px solid #30363d; }
 
+/* --- project picker --- */
+.project-picker { display: flex; gap: 4px; align-items: center; }
+.project-picker select { background: #161b22; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 4px 8px; }
+.project-picker button { background: #161b22; border: 1px solid #30363d; color: #adbac7; border-radius: 6px; padding: 2px 10px; }
+
+/* --- task add row --- */
+.task-add { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.task-add input[type="text"], .task-add input:not([type]) { flex: 1; min-width: 160px; background: #161b22; color: #e6edf3; border: 1px solid #30363d; border-radius: 8px; padding: 8px 10px; }
+.task-add label { font-size: 12px; color: #8b949e; display: flex; flex-direction: column; }
+
 /* --- advisor panel --- */
 .advisor { flex: 1; overflow-y: auto; padding: 16px; }
 .advisor-input { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }

@@ -1,17 +1,40 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type Message, type ProviderInfo } from "./lib/api";
+import { api, type Message, type Project, type ProviderInfo } from "./lib/api";
 import AdvisorPanel from "./components/AdvisorPanel";
+import PlanPanel from "./components/PlanPanel";
 
 interface Turn extends Message {
   meta?: string;
 }
 
-type Tab = "chat" | "advisor";
+type Tab = "chat" | "plan" | "advisor";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("chat");
-  // Single demo project until the project picker lands in Phase 2.
-  const projectId = 1;
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState<number | null>(null);
+
+  // Load projects; create a default one on first run so the app is usable immediately.
+  useEffect(() => {
+    api.listProjects().then(async ({ projects }) => {
+      if (projects.length === 0) {
+        const p = await api.createProject("My Project");
+        setProjects([p]);
+        setProjectId(p.id);
+      } else {
+        setProjects(projects);
+        setProjectId(projects[0].id);
+      }
+    });
+  }, []);
+
+  async function newProject() {
+    const name = prompt("Project name?");
+    if (!name) return;
+    const p = await api.createProject(name);
+    setProjects((ps) => [...ps, p]);
+    setProjectId(p.id);
+  }
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [provider, setProvider] = useState("mock");
   const [model, setModel] = useState("mock-small");
@@ -69,8 +92,15 @@ export default function App() {
         <h1>Phorrom</h1>
         <nav className="tabs">
           <button className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>Chat</button>
+          <button className={tab === "plan" ? "active" : ""} onClick={() => setTab("plan")}>Plan</button>
           <button className={tab === "advisor" ? "active" : ""} onClick={() => setTab("advisor")}>Advisor</button>
         </nav>
+        <div className="project-picker">
+          <select value={projectId ?? ""} onChange={(e) => setProjectId(Number(e.target.value))}>
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <button onClick={() => void newProject()} title="New project">＋</button>
+        </div>
         <div className="controls" style={{ visibility: tab === "chat" ? "visible" : "hidden" }}>
           <select
             value={provider}
@@ -97,8 +127,12 @@ export default function App() {
         </div>
       </header>
 
-      {tab === "advisor" ? (
+      {projectId === null ? (
+        <p className="hint" style={{ marginTop: 40 }}>Loading project…</p>
+      ) : tab === "advisor" ? (
         <AdvisorPanel projectId={projectId} />
+      ) : tab === "plan" ? (
+        <PlanPanel projectId={projectId} />
       ) : (
         <>
       {error && <div className="error">{error}</div>}
