@@ -207,6 +207,18 @@ button:disabled { opacity: 0.5; cursor: default; filter: none; }
 .wizard-review .review-row { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border-soft); font-size: 13.5px; }
 .wizard-review .review-row span { color: var(--muted); }
 
+/* ---------- feature briefs (preliminary responses) ---------- */
+.brief-banner { background: linear-gradient(180deg, var(--accent-soft), transparent); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius); padding: 12px 15px; margin-bottom: 18px; max-width: 940px; transition: box-shadow 0.3s, border-color 0.3s; }
+.brief-banner.flash, .bt-card.flash { box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent); }
+.brief-head { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.brief-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--accent-2); }
+.brief-summary { margin: 8px 0 0; font-size: 13.5px; color: var(--text); line-height: 1.5; }
+.brief-points { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.brief-points li { position: relative; display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--muted); padding: 3px 0; }
+.brief-bar { flex: none; height: 6px; min-width: 6px; max-width: 64px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 3px; opacity: 0.8; }
+.brief-text { flex: 1; color: var(--text); }
+.brief-src { flex: none; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--faint); font-family: var(--mono); }
+
 /* ---------- help / guide ---------- */
 .help-list { margin: 6px 0 0; padding-left: 20px; }
 .help-list li { font-size: 13.5px; color: var(--text); margin-bottom: 5px; line-height: 1.5; }

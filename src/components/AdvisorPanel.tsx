@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import FeatureBrief from "./FeatureBrief";
 import {
   api,
   type AdvisorOverview,
@@ -84,6 +85,7 @@ export default function AdvisorPanel({ projectId }: { projectId: number }) {
 
   return (
     <div className="advisor">
+      <FeatureBrief projectId={projectId} feature="advisor" />
       <div className="advisor-input">
         <textarea
           placeholder="Describe the problem you're tackling…"

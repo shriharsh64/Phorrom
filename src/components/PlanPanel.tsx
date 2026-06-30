@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type ProblemRecord, type ProgressAssessment, type TaskRow } from "../lib/api";
+import FeatureBrief from "./FeatureBrief";
 
 // Phase 2 "Plan" view: define the problem (capability #1) and manage a prioritized,
 // dependency-aware task list (capability #8).
@@ -58,6 +59,7 @@ export default function PlanPanel({ projectId }: { projectId: number }) {
 
   return (
     <div className="advisor">
+      <FeatureBrief projectId={projectId} feature="plan" />
       <section>
         <h2>Problem statement</h2>
         <div className="advisor-input">

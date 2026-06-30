@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type IdeaRow } from "../lib/api";
+import FeatureBrief from "./FeatureBrief";
 
 // Capability #2: generate & rank ideas; each idea's required concepts the user hasn't mastered
 // become 'gap' concepts that the Advisor tab then turns into a learning plan.
@@ -41,6 +42,7 @@ export default function IdeationPanel({ projectId }: { projectId: number }) {
 
   return (
     <div className="advisor">
+      <FeatureBrief projectId={projectId} feature="ideation" />
       <div className="advisor-input">
         <textarea placeholder="Optional focus for ideation (defaults to the project's problem statement)…" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
         <button onClick={() => void generate()} disabled={busy}>{busy ? "Ideating…" : "Generate ideas"}</button>

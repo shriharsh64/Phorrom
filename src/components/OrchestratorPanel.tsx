@@ -1,4 +1,5 @@
 import { useState } from "react";
+import FeatureBrief from "./FeatureBrief";
 import { api, type OrchestrateResult } from "../lib/api";
 
 // Phase 3 flagship view: decompose a task into a subtask DAG, then show how the budget
@@ -29,6 +30,7 @@ export default function OrchestratorPanel({ projectId }: { projectId: number }) 
 
   return (
     <div className="advisor">
+      <FeatureBrief projectId={projectId} feature="orchestrator" />
       <div className="advisor-input">
         <textarea placeholder="Describe a task to decompose & orchestrate…" value={task} onChange={(e) => setTask(e.target.value)} />
         <div className="task-add">

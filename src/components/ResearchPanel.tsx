@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import FeatureBrief from "./FeatureBrief";
 import { api, type ResearchResultRow, type ResearchSummary } from "../lib/api";
 
 // Capability #4: prior-art search across free sources (arXiv + Semantic Scholar) with a
@@ -37,6 +38,7 @@ export default function ResearchPanel({ projectId }: { projectId: number }) {
 
   return (
     <div className="advisor">
+      <FeatureBrief projectId={projectId} feature="research" />
       <div className="advisor-input">
         <input placeholder="Search prior art (e.g. 'low-cost soil moisture sensing')" value={query} onChange={(e) => setQuery(e.target.value)} />
         <button onClick={() => void run()} disabled={busy}>{busy ? "Searching…" : "Search prior art"}</button>

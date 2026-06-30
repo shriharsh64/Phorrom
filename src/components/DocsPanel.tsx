@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import FeatureBrief from "./FeatureBrief";
 import { api, type DocResult, type MultimodalResult } from "../lib/api";
 
 // Capability #5 (document generation) + multimodal extraction (OCR / speech-to-text).
@@ -33,6 +34,7 @@ export default function DocsPanel({ projectId }: { projectId: number }) {
 
   return (
     <div className="advisor">
+      <FeatureBrief projectId={projectId} feature="docs" />
       <section>
         <h2>Document &amp; research-paper generator</h2>
         <div className="progress-row" style={{ flexWrap: "wrap" }}>

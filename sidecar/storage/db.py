@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -303,6 +303,21 @@ CREATE TABLE IF NOT EXISTS estimator_samples (
     tokens      INTEGER NOT NULL,
     quality     REAL,
     created_at  REAL NOT NULL
+);
+
+-- Feature briefs (Phase 6): one preliminary, continuously-updated response per app feature
+-- (chat..docs). ``points`` is a compressed knowledge base — key points ranked by importance,
+-- deduped and capped — so the chat control loop can keep every feature current without storing
+-- each regeneration verbatim. One row per (project, feature).
+CREATE TABLE IF NOT EXISTS feature_briefs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    feature     TEXT NOT NULL,
+    summary     TEXT,
+    points      TEXT,                            -- json array of {text, importance, source}
+    version     INTEGER NOT NULL DEFAULT 1,
+    updated_at  REAL NOT NULL,
+    UNIQUE(project_id, feature)
 );
 """
 
@@ -1019,6 +1034,36 @@ class Database:
             "SELECT * FROM estimator_samples ORDER BY id DESC LIMIT ?", (limit,)
         ).fetchall()
         return [dict(r) for r in rows]
+
+    # --- feature briefs (Phase 6 chat-driven, importance-compressed) -----------
+    @staticmethod
+    def _decode_brief(row: dict) -> dict:
+        row["points"] = json.loads(row.get("points") or "[]")
+        return row
+
+    def upsert_brief(self, project_id: int, feature: str, summary: str, points: list) -> None:
+        self.conn.execute(
+            "INSERT INTO feature_briefs(project_id, feature, summary, points, version, updated_at)"
+            " VALUES(?,?,?,?,1,?)"
+            " ON CONFLICT(project_id, feature) DO UPDATE SET"
+            " summary=excluded.summary, points=excluded.points,"
+            " version=feature_briefs.version+1, updated_at=excluded.updated_at",
+            (project_id, feature, summary, json.dumps(points), time.time()),
+        )
+        self.conn.commit()
+
+    def get_brief(self, project_id: int, feature: str) -> dict | None:
+        row = self.conn.execute(
+            "SELECT * FROM feature_briefs WHERE project_id=? AND feature=?",
+            (project_id, feature),
+        ).fetchone()
+        return self._decode_brief(dict(row)) if row else None
+
+    def list_briefs(self, project_id: int) -> dict[str, dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM feature_briefs WHERE project_id=?", (project_id,)
+        ).fetchall()
+        return {r["feature"]: self._decode_brief(dict(r)) for r in rows}
 
     # --- governed file writes (capability #9) ----------------------------------
     def add_pending_write(

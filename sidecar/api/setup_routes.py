@@ -134,6 +134,9 @@ def build_setup_router() -> APIRouter:
         )
         project = db.get_project(pid) or {}
         setup.write_project_files(root, project, prompts)
+        # Seed a preliminary response in every feature the moment the description is stated.
+        from .briefs_routes import generate_for_project
+        generate_for_project(db, pid)
         setup.export_project_data(db, pid, root)
         return {"project": project}
 

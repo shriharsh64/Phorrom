@@ -10,6 +10,7 @@ import SettingsPanel from "./components/SettingsPanel";
 import DocsPanel from "./components/DocsPanel";
 import PromptsPanel from "./components/PromptsPanel";
 import HelpPanel from "./components/HelpPanel";
+import BriefsPanel from "./components/BriefsPanel";
 import LauncherScreen from "./components/LauncherScreen";
 
 interface Turn extends Message {
@@ -17,7 +18,7 @@ interface Turn extends Message {
 }
 
 type Tab =
-  | "chat" | "plan" | "ideation" | "research" | "prompts"
+  | "overview" | "chat" | "plan" | "ideation" | "research" | "prompts"
   | "orchestrator" | "advisor" | "docs"
   | "dashboard" | "settings" | "help";
 
@@ -30,6 +31,7 @@ interface ViewMeta {
 }
 
 const VIEWS: Record<Tab, ViewMeta> = {
+  overview: { label: "Overview", icon: "🗺️", title: "Overview", subtitle: "Preliminary response in every feature, kept current by chat", group: "Workspace" },
   chat: { label: "Chat", icon: "💬", title: "Chat", subtitle: "Converse with your project co-pilot", group: "Workspace" },
   plan: { label: "Plan", icon: "🗂️", title: "Plan", subtitle: "Problem statement, tasks & progress", group: "Workspace" },
   ideation: { label: "Ideation", icon: "💡", title: "Ideation", subtitle: "Generate, score & rank concepts", group: "Workspace" },
@@ -116,14 +118,24 @@ export default function App() {
     setTurns((t) => [...t, userTurn]);
     setInput("");
     try {
+      let answer = "";
       if (optimize) {
         const r = await api.optimize(text, depth, provider, model, projectId ?? undefined);
+        answer = r.text;
         setTurns((t) => [...t, { role: "assistant", content: r.text,
           meta: `optimized · score ${r.score} · ${r.iterations} pass(es) · relevance ${r.relevance}` }]);
       } else {
         const res = await api.chat(history, provider, model);
+        answer = res.text;
         setTurns((t) => [...t, { role: "assistant", content: res.text,
           meta: `${res.provider}/${res.model} · ${res.tokens_in}+${res.tokens_out} tok · ${Math.round(res.latency_ms)}ms` }]);
+      }
+      // Chat is the control loop: fold this exchange into every feature's brief, then notify panels.
+      if (projectId !== null) {
+        api.updateBriefs(projectId, text, answer)
+          .then((r) => window.dispatchEvent(new CustomEvent("phorrom:briefs-updated",
+            { detail: { projectId, changed: r.changed } })))
+          .catch(() => undefined);
       }
     } catch (e) {
       setError(String(e));
@@ -141,6 +153,7 @@ export default function App() {
     if (tab === "help") return <HelpPanel />;
     if (projectId === null) return <div className="empty">Loading project…</div>;
     switch (tab) {
+      case "overview": return <BriefsPanel projectId={projectId} />;
       case "plan": return <PlanPanel projectId={projectId} />;
       case "ideation": return <IdeationPanel projectId={projectId} />;
       case "research": return <ResearchPanel projectId={projectId} />;

@@ -212,6 +212,19 @@ export interface SyncResult {
   synced_at: number;
 }
 
+export interface BriefPoint {
+  text: string;
+  importance: number;
+  source: string;
+}
+
+export interface FeatureBrief {
+  summary: string;
+  points: BriefPoint[];
+}
+
+export type Briefs = Record<string, FeatureBrief>;
+
 export interface ProblemRecord {
   statement: string;
   scope: string | null;
@@ -391,6 +404,17 @@ export const api = {
     req<{ prompts: Record<string, string> }>(`/projects/${project_id}/prompts/regenerate`, { method: "POST" }),
   syncProject: (project_id: number) =>
     req<SyncResult>(`/projects/${project_id}/sync`, { method: "POST" }),
+
+  // --- feature briefs: preliminary responses + chat-driven, compressed updates ---
+  getBriefs: (project_id: number) =>
+    req<{ briefs: Briefs }>(`/projects/${project_id}/briefs`),
+  generateBriefs: (project_id: number) =>
+    req<{ briefs: Briefs }>(`/projects/${project_id}/briefs/generate`, { method: "POST" }),
+  updateBriefs: (project_id: number, user: string, assistant: string) =>
+    req<{ briefs: Briefs; changed: string[] }>(`/projects/${project_id}/briefs/update`, {
+      method: "POST",
+      body: JSON.stringify({ user, assistant }),
+    }),
 
   defineProblem: (project_id: number, description: string) =>
     req<{ latest: ProblemRecord }>("/problem/define", {

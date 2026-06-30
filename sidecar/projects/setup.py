@@ -311,6 +311,7 @@ def export_project_data(db: Database, project_id: int, root: str) -> dict:
         "learning": db.list_learning_items(project_id),
         "breakthroughs": db.list_breakthroughs(project_id),
         "chat": db.chat_history(project_id=project_id, limit=1000),
+        "briefs": db.list_briefs(project_id),
     }
     written: list[str] = []
     for name, data in datasets.items():
