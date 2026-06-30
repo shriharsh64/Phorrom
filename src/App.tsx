@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type Message, type Project, type ProviderInfo } from "./lib/api";
+import { api, type AppSettings, type Message, type Project, type ProviderInfo } from "./lib/api";
 import AdvisorPanel from "./components/AdvisorPanel";
 import PlanPanel from "./components/PlanPanel";
 import OrchestratorPanel from "./components/OrchestratorPanel";
@@ -8,15 +8,18 @@ import ResearchPanel from "./components/ResearchPanel";
 import DashboardPanel from "./components/DashboardPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import DocsPanel from "./components/DocsPanel";
+import PromptsPanel from "./components/PromptsPanel";
+import HelpPanel from "./components/HelpPanel";
+import LauncherScreen from "./components/LauncherScreen";
 
 interface Turn extends Message {
   meta?: string;
 }
 
 type Tab =
-  | "chat" | "plan" | "ideation" | "research"
+  | "chat" | "plan" | "ideation" | "research" | "prompts"
   | "orchestrator" | "advisor" | "docs"
-  | "dashboard" | "settings";
+  | "dashboard" | "settings" | "help";
 
 interface ViewMeta {
   label: string;
@@ -31,11 +34,13 @@ const VIEWS: Record<Tab, ViewMeta> = {
   plan: { label: "Plan", icon: "🗂️", title: "Plan", subtitle: "Problem statement, tasks & progress", group: "Workspace" },
   ideation: { label: "Ideation", icon: "💡", title: "Ideation", subtitle: "Generate, score & rank concepts", group: "Workspace" },
   research: { label: "Research", icon: "🔬", title: "Prior-art research", subtitle: "Search the literature & map white space", group: "Workspace" },
+  prompts: { label: "Prompts", icon: "🧾", title: "Feature prompts", subtitle: "Tailored prompts for every feature", group: "Workspace" },
   orchestrator: { label: "Orchestrator", icon: "🧩", title: "Orchestrator", subtitle: "Decompose, budget & route across models", group: "Build" },
   advisor: { label: "Advisor", icon: "🧭", title: "Resource advisor", subtitle: "Tools, learning plan & breakthroughs", group: "Build" },
   docs: { label: "Docs", icon: "📄", title: "Documents", subtitle: "Generate reports & extract from media", group: "Build" },
   dashboard: { label: "Dashboard", icon: "📊", title: "Dashboard", subtitle: "Provider health, tokens & estimators", group: "System" },
   settings: { label: "Settings", icon: "⚙️", title: "Settings", subtitle: "Provider keys & cloud backup", group: "System" },
+  help: { label: "Help & guide", icon: "❓", title: "Help & guide", subtitle: "How every feature works & best practices", group: "System" },
 };
 
 const GROUPS = ["Workspace", "Build", "System"];
@@ -44,27 +49,40 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("chat");
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState<number | null>(null);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [showLauncher, setShowLauncher] = useState(true);
+  const [autosaveAt, setAutosaveAt] = useState<number | null>(null);
 
   useEffect(() => {
-    api.listProjects().then(async ({ projects }) => {
-      if (projects.length === 0) {
-        const p = await api.createProject("My Project");
-        setProjects([p]);
-        setProjectId(p.id);
-      } else {
-        setProjects(projects);
-        setProjectId(projects[0].id);
-      }
-    });
+    api.getSettings().then(setSettings).catch(() => setSettings(null));
   }, []);
 
-  async function newProject() {
-    const name = prompt("Project name?");
-    if (!name) return;
-    const p = await api.createProject(name);
-    setProjects((ps) => [...ps, p]);
+  function openProject(p: Project) {
+    setProjects((ps) => (ps.some((x) => x.id === p.id) ? ps : [...ps, p]));
     setProjectId(p.id);
+    setShowLauncher(false);
+    void api.listProjects().then((r) => setProjects(r.projects)).catch(() => {});
   }
+
+  // --- interval autosave: mirror the live DB into the project folder (+ optional cloud) ---
+  useEffect(() => {
+    if (projectId === null || !settings?.autosave_enabled) return;
+    const interval = Math.max(15, settings.autosave_interval_sec) * 1000;
+    let stop = false;
+    async function tick() {
+      if (stop || projectId === null) return;
+      try {
+        await api.syncProject(projectId);
+        setAutosaveAt(Date.now());
+        if (settings?.cloud_autobackup) {
+          const pass = sessionStorage.getItem("phorrom_pass");
+          if (pass) await api.cloudBackup(pass).catch(() => undefined);
+        }
+      } catch { /* no folder / offline — skip this tick */ }
+    }
+    const h = setInterval(() => void tick(), interval);
+    return () => { stop = true; clearInterval(h); };
+  }, [projectId, settings?.autosave_enabled, settings?.autosave_interval_sec, settings?.cloud_autobackup]);
 
   // --- chat state ---
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
@@ -79,8 +97,9 @@ export default function App() {
   const bottom = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (tab !== "chat" || showLauncher) return;
     api.providers().then((r) => setProviders(r.providers)).catch((e) => setError(String(e)));
-  }, []);
+  }, [tab, showLauncher]);
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
   }, [turns]);
@@ -119,11 +138,13 @@ export default function App() {
     if (tab === "chat") return renderChat();
     if (tab === "dashboard") return <DashboardPanel />;
     if (tab === "settings") return <SettingsPanel />;
+    if (tab === "help") return <HelpPanel />;
     if (projectId === null) return <div className="empty">Loading project…</div>;
     switch (tab) {
       case "plan": return <PlanPanel projectId={projectId} />;
       case "ideation": return <IdeationPanel projectId={projectId} />;
       case "research": return <ResearchPanel projectId={projectId} />;
+      case "prompts": return <PromptsPanel projectId={projectId} />;
       case "orchestrator": return <OrchestratorPanel projectId={projectId} />;
       case "advisor": return <AdvisorPanel projectId={projectId} />;
       case "docs": return <DocsPanel projectId={projectId} />;
@@ -166,6 +187,11 @@ export default function App() {
     );
   }
 
+  // The launcher is the startup window: workspace setup, then new/open project.
+  if (showLauncher) {
+    return <LauncherScreen onOpen={openProject} />;
+  }
+
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -192,8 +218,11 @@ export default function App() {
             <select value={projectId ?? ""} onChange={(e) => setProjectId(Number(e.target.value))}>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
-            <button className="btn btn-ghost" onClick={() => void newProject()} title="New project">＋</button>
+            <button className="btn btn-ghost" onClick={() => setShowLauncher(true)} title="New / open project">⌂</button>
           </div>
+          {autosaveAt && (
+            <div className="autosave-note">Autosaved {new Date(autosaveAt).toLocaleTimeString()}</div>
+          )}
         </div>
       </aside>
 

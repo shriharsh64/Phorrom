@@ -167,10 +167,49 @@ export interface AdvisorContext {
 
 // --- Phase 2: projects, problem, tasks -------------------------------------
 
+export interface ProjectFeature {
+  name: string;
+  description: string;
+  enabled: boolean;
+}
+
 export interface Project {
   id: number;
   name: string;
   root_path: string | null;
+  description?: string | null;
+  deadline?: string | null;
+  features?: ProjectFeature[];
+  details?: Record<string, string>;
+  prompts?: Record<string, string>;
+}
+
+export interface AppSettings {
+  configured: boolean;
+  workspace_path: string;
+  workspace_name: string;
+  autosave_enabled: boolean;
+  autosave_interval_sec: number;
+  cloud_autobackup: boolean;
+  default_workspace: string;
+}
+
+export interface FeatureCatalogItem {
+  key: string;
+  label: string;
+  demands: string;
+}
+
+export interface SuggestResult {
+  features: ProjectFeature[];
+  suggested_api_keys: string[];
+}
+
+export interface SyncResult {
+  ok: boolean;
+  root: string;
+  files: string[];
+  synced_at: number;
 }
 
 export interface ProblemRecord {
@@ -322,6 +361,36 @@ export const api = {
   listProjects: () => req<{ projects: Project[] }>("/projects"),
   createProject: (name: string) =>
     req<Project>("/projects", { method: "POST", body: JSON.stringify({ name }) }),
+  getProject: (project_id: number) =>
+    req<{ project: Project }>(`/projects/${project_id}`),
+
+  // --- Phase 6: workspace, wizard, prompts, autosave -----------------------
+  getSettings: () => req<AppSettings>("/settings"),
+  setWorkspace: (path: string, name: string) =>
+    req<AppSettings>("/settings/workspace", { method: "POST", body: JSON.stringify({ path, name }) }),
+  updateSettings: (s: Partial<Pick<AppSettings, "autosave_enabled" | "autosave_interval_sec" | "cloud_autobackup">>) =>
+    req<AppSettings>("/settings", { method: "POST", body: JSON.stringify(s) }),
+  featureCatalog: () => req<{ features: FeatureCatalogItem[] }>("/features/catalog"),
+  suggestFeatures: (description: string, deadline?: string | null) =>
+    req<SuggestResult>("/projects/suggest-features", {
+      method: "POST",
+      body: JSON.stringify({ description, deadline }),
+    }),
+  createFullProject: (body: {
+    name: string;
+    description: string;
+    deadline?: string | null;
+    features: ProjectFeature[];
+    details: Record<string, string>;
+  }) => req<{ project: Project }>("/projects/create", { method: "POST", body: JSON.stringify(body) }),
+  getPrompts: (project_id: number) =>
+    req<{ prompts: Record<string, string>; features: FeatureCatalogItem[] }>(
+      `/projects/${project_id}/prompts`,
+    ),
+  regeneratePrompts: (project_id: number) =>
+    req<{ prompts: Record<string, string> }>(`/projects/${project_id}/prompts/regenerate`, { method: "POST" }),
+  syncProject: (project_id: number) =>
+    req<SyncResult>(`/projects/${project_id}/sync`, { method: "POST" }),
 
   defineProblem: (project_id: number, description: string) =>
     req<{ latest: ProblemRecord }>("/problem/define", {

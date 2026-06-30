@@ -24,6 +24,7 @@ from .api.orchestrator_routes import build_orchestrator_router
 from .api.phase2_routes import build_phase2_router
 from .api.research_routes import build_research_router
 from .api.routes import build_router
+from .api.setup_routes import build_setup_router
 from .config import Config
 from .providers.base import Provider
 from .providers.gemini import GeminiProvider
@@ -86,6 +87,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     app.include_router(build_ml_router(), dependencies=[Depends(require_auth)])
     app.include_router(build_docs_router(), dependencies=[Depends(require_auth)])
     app.include_router(build_cloud_router(), dependencies=[Depends(require_auth)])
+    app.include_router(build_setup_router(), dependencies=[Depends(require_auth)])
     return app
 
 

@@ -20,10 +20,17 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+-- App-wide settings (key/value). Holds the first-run workspace folder + name where every
+-- project is created on disk, and autosave/backup preferences. One row per setting.
+CREATE TABLE IF NOT EXISTS app_settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
@@ -306,6 +313,12 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("tasks", "urgency", "REAL"),
     ("tasks", "impact", "REAL"),
     ("tasks", "depends_on", "TEXT"),
+    # Rich project metadata captured by the new-project wizard (Phase 6).
+    ("projects", "description", "TEXT"),
+    ("projects", "deadline", "TEXT"),       # ISO date string, optional
+    ("projects", "features", "TEXT"),       # json array of {name, description, enabled}
+    ("projects", "details", "TEXT"),        # json object of free-form extra fields
+    ("projects", "prompts", "TEXT"),        # json object: feature -> generated prompt
 ]
 
 
@@ -343,11 +356,56 @@ class Database:
         )
         self.conn.commit()
 
+    # --- app settings (first-run workspace, autosave prefs) --------------------
+    def get_setting(self, key: str, default: str | None = None) -> str | None:
+        row = self.conn.execute(
+            "SELECT value FROM app_settings WHERE key=?", (key,)
+        ).fetchone()
+        return row["value"] if row else default
+
+    def set_setting(self, key: str, value: str) -> None:
+        self.conn.execute(
+            "INSERT INTO app_settings(key, value) VALUES(?,?)"
+            " ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, value),
+        )
+        self.conn.commit()
+
+    def all_settings(self) -> dict[str, str]:
+        rows = self.conn.execute("SELECT key, value FROM app_settings").fetchall()
+        return {r["key"]: r["value"] for r in rows}
+
     # --- projects --------------------------------------------------------------
-    def create_project(self, name: str, root_path: str | None = None) -> int:
+    # Columns added in v11 (may be JSON-encoded); decoded on read.
+    _PROJECT_JSON_FIELDS = ("features", "details", "prompts")
+
+    @classmethod
+    def _decode_project(cls, row: dict) -> dict:
+        for f in cls._PROJECT_JSON_FIELDS:
+            raw = row.get(f)
+            row[f] = json.loads(raw) if raw else (
+                {} if f in ("details", "prompts") else []
+            )
+        return row
+
+    def create_project(
+        self,
+        name: str,
+        root_path: str | None = None,
+        description: str | None = None,
+        deadline: str | None = None,
+        features: list | None = None,
+        details: dict | None = None,
+        prompts: dict | None = None,
+    ) -> int:
         cur = self.conn.execute(
-            "INSERT INTO projects(name, root_path, created_at) VALUES(?,?,?)",
-            (name, root_path, time.time()),
+            "INSERT INTO projects(name, root_path, description, deadline, features, details,"
+            " prompts, created_at) VALUES(?,?,?,?,?,?,?,?)",
+            (name, root_path, description, deadline,
+             json.dumps(features) if features is not None else None,
+             json.dumps(details) if details is not None else None,
+             json.dumps(prompts) if prompts is not None else None,
+             time.time()),
         )
         self.conn.commit()
         self.audit("user", "create_project", {"name": name})
@@ -355,16 +413,30 @@ class Database:
 
     def list_projects(self) -> list[dict]:
         rows = self.conn.execute("SELECT * FROM projects ORDER BY id").fetchall()
-        return [dict(r) for r in rows]
+        return [self._decode_project(dict(r)) for r in rows]
 
     def get_project(self, project_id: int) -> dict | None:
         row = self.conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
-        return dict(row) if row else None
+        return self._decode_project(dict(row)) if row else None
 
     def set_project_root(self, project_id: int, root_path: str) -> None:
         self.conn.execute(
             "UPDATE projects SET root_path=? WHERE id=?", (root_path, project_id)
         )
+        self.conn.commit()
+
+    def update_project(self, project_id: int, **fields) -> None:
+        """Update selected project columns; JSON fields are encoded automatically."""
+        if not fields:
+            return
+        sets, params = [], []
+        for key, value in fields.items():
+            if key in self._PROJECT_JSON_FIELDS:
+                value = json.dumps(value) if value is not None else None
+            sets.append(f"{key}=?")
+            params.append(value)
+        params.append(project_id)
+        self.conn.execute(f"UPDATE projects SET {', '.join(sets)} WHERE id=?", params)
         self.conn.commit()
 
     # --- chat ------------------------------------------------------------------

@@ -169,6 +169,48 @@ button:disabled { opacity: 0.5; cursor: default; filter: none; }
 /* breakthroughs accent rails by status */
 .bt-card.exploring { border-left-color: var(--amber); }
 
+/* ---------- launcher (startup window) ---------- */
+.launcher { height: 100vh; overflow-y: auto; display: flex; align-items: center; justify-content: center; padding: 40px 20px; background: radial-gradient(1200px 600px at 50% -10%, rgba(124,92,255,0.12), transparent), var(--bg); }
+.launcher-card { width: 100%; max-width: 460px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 30px 30px 28px; box-shadow: var(--shadow); }
+.launcher-card.launcher-wide { max-width: 680px; }
+.launcher-card h1 { font-size: 22px; font-weight: 750; margin: 0 0 8px; text-align: center; }
+.launcher-card .field-label { margin-top: 4px; }
+.launcher-actions { display: grid; gap: 12px; margin-top: 6px; }
+.launcher-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; background: var(--accent-soft); border: 1px solid rgba(124,92,255,0.35); color: var(--text); padding: 16px 18px; border-radius: var(--radius); }
+.launcher-tile:hover { filter: brightness(1.06); }
+.launcher-tile-icon { font-size: 22px; line-height: 1; }
+.launcher-tile-title { font-size: 15px; font-weight: 700; margin-top: 6px; }
+.launcher-tile-sub { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+.launcher-projects { display: grid; gap: 8px; margin-top: 10px; }
+.launcher-project { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); padding: 12px 14px; border-radius: var(--radius-sm); text-align: left; }
+.launcher-project:hover { border-color: var(--accent); }
+.launcher-project-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.launcher-project-name { font-weight: 650; font-size: 14px; }
+.launcher-project-desc { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 460px; }
+.autosave-note { font-size: 10.5px; color: var(--faint); margin-top: 8px; font-family: var(--mono); }
+
+/* ---------- new-project wizard ---------- */
+.wizard-overlay { position: fixed; inset: 0; background: rgba(5,7,11,0.66); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 50; }
+.wizard { width: 100%; max-width: 620px; max-height: 90vh; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.wizard-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.wizard-head h2 { margin: 0; font-size: 16px; }
+.wizard-steps { display: flex; gap: 6px; padding: 12px 20px; border-bottom: 1px solid var(--border-soft); flex-wrap: wrap; }
+.wizard-step { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--faint); }
+.wizard-step.active { color: var(--text); }
+.wizard-step.done { color: var(--green); }
+.wizard-step-num { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; border: 1px solid var(--border); }
+.wizard-step.active .wizard-step-num { border-color: var(--accent); color: #fff; background: var(--accent); }
+.wizard-step.done .wizard-step-num { border-color: var(--green); color: var(--green); }
+.wizard-body { padding: 20px; overflow-y: auto; }
+.wizard-body input[type="text"], .wizard-body input[type="date"], .wizard-body input[type="password"], .wizard-body input[type="number"], .wizard-body textarea { width: 100%; }
+.wizard-foot { display: flex; justify-content: space-between; padding: 14px 20px; border-top: 1px solid var(--border); }
+.wizard-review .review-row { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border-soft); font-size: 13.5px; }
+.wizard-review .review-row span { color: var(--muted); }
+
+/* ---------- help / guide ---------- */
+.help-list { margin: 6px 0 0; padding-left: 20px; }
+.help-list li { font-size: 13.5px; color: var(--text); margin-bottom: 5px; line-height: 1.5; }
+
 @media (max-width: 760px) {
   .shell { grid-template-columns: 64px 1fr; }
   .brand-text, .nav-group-label, .nav-item span:not(.nav-icon), .sidebar-foot { display: none; }

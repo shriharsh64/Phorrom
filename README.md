@@ -3,8 +3,7 @@
 An end-to-end, local-first AI **project-management agent** desktop app. Phorrom understands a
 project (reads its files), evolves with it (continuously re-plans), and acts on it (writes
 docs, logs, next-task definitions). Its flagship is a **multi-model orchestrator** that
-decomposes a task into subtasks, routes each to the most suitable *free* generative model, and
-allocates a token budget so future token-heavy tasks never get starved.
+decomposes a task into subtasks, routes each to the most suitable *free* generative model, and allocates a token budget so future token-heavy tasks never get starved.
 
 > Status: **early scaffold** — see `PLAN.md` for the phased build and `DECISIONS.md` for ADRs.
 
@@ -89,6 +88,26 @@ sidecar/.venv/Scripts/python -m uvicorn sidecar.app:app --port 8008 --app-dir .
 # terminal 2 — frontend
 npm run dev            # open the printed http://localhost:1420
 ```
+
+## Projects, workspace & autosave
+On first launch a **startup window** asks you to pick a **workspace folder** (with a name) where
+every project is saved. From there you can **create a new project** or **open an existing one**.
+
+The **new-project wizard** collects a description, deadline, suggested features (auto-suggested
+from your description — toggle/edit/add), any API keys those features need, and extra details
+(domain, audience, tech stack, constraints). On finish it:
+- creates a dedicated folder under your workspace (`prompts/`, `exports/`, `generated-docs/`, …),
+- generates a **tailored prompt for every app feature** (Chat, Plan, Ideation, Research,
+  Orchestrator, Advisor, Docs) — each written the specific way that feature consumes input,
+  viewable/copyable in the **Prompts** tab and saved under `prompts/`,
+- writes `project.json` + `README.md` and a JSON mirror of all project data under `exports/`.
+
+**Autosave** mirrors the live DB into the project folder on an interval (configurable in
+Settings); enable **cloud autobackup** to also push an encrypted snapshot to Drive each interval
+(uses the passphrase from your last manual backup, kept in memory for the session only).
+
+The **Help & guide** tab documents every feature — what it does, how to use it, and best
+practices.
 
 ## Document generation & multimodal (native tools)
 The **Docs** tab generates IEEE/ACM/APA reports from real project data and runs OCR / speech-to-text.

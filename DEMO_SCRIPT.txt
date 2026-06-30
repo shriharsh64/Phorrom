@@ -1,0 +1,609 @@
+================================================================================
+PHORROM — DEMO VIDEO SCRIPT
+Full feature walkthrough for a screen-recorded demo
+================================================================================
+
+WHAT IS PHORROM?
+----------------
+Phorrom is a local-first, offline-capable AI project-management desktop app.
+It is built with Tauri 2 (Rust shell), React/TypeScript (frontend), and a
+Python/FastAPI sidecar that does all the AI work. The whole system runs on your
+machine; nothing leaves your device unless you deliberately connect Google Drive
+for backup.
+
+Its flagship is a multi-model orchestrator: it breaks a big task into subtasks,
+scores each one, routes each subtask to the best available AI model, and enforces
+a token budget so later subtasks are never starved of quota.
+
+Cost: ₹0 recurring. Every provider used (Gemini, Groq, OpenRouter) has a free
+tier. It also runs entirely on Ollama (100% local, no internet) and a built-in
+mock provider (offline testing).
+
+Tech stack recap (for the voiceover):
+  - Tauri 2 / Rust      — native desktop shell, OS keychain, sidecar launcher
+  - React 18 + Vite     — frontend UI at localhost:1420 in dev
+  - Python 3.11 FastAPI — AI sidecar at 127.0.0.1:8008
+  - SQLite              — all project data, tasks, token ledger, ML samples
+  - ChromaDB            — vector memory (research grounding)
+  - PuLP / OR-Tools     — token-budget LP optimizer
+  - scikit-learn        — learned token + quality estimators
+  - Pandoc + TinyTeX    — PDF/DOCX document generation
+  - Tesseract + Whisper — OCR and audio transcription
+
+================================================================================
+SECTION 0 — HOW THE APP STARTS (show this first)
+================================================================================
+
+When you launch Phorrom (either via the NSIS installer or `npm run tauri dev`
+in development), the Tauri shell:
+
+  1. Reads API keys from the OS Credential Manager (Windows) / Keychain (macOS)
+     and injects them as environment variables before starting the sidecar.
+  2. Spawns the Python sidecar (`phorrom-sidecar.exe` bundled via PyInstaller).
+     The sidecar binds to http://127.0.0.1:8008.
+  3. Opens the WebView window pointing at the React frontend.
+  4. The frontend fetches /projects and /providers on load.
+  5. If no project exists, it auto-creates "My Project".
+
+WHAT TO SHOW:
+  - Show the desktop shortcut or the installer output folder.
+  - Double-click the app; the window opens in ~2-3 seconds.
+  - In dev mode, the terminal shows:
+      "sidecar launched on http://127.0.0.1:8008"
+      "Application startup complete."
+  - The UI loads with the sidebar on the left and Chat open by default.
+
+================================================================================
+SECTION 1 — SETTINGS (must do before anything cloud-AI related)
+================================================================================
+
+WHAT IT DOES:
+The Settings panel manages three API key providers and the Google Drive cloud
+backup. Keys are stored in the OS keychain (Windows Credential Manager), NOT in
+any file on disk. When you save a key, two things happen simultaneously:
+  a) The key is written to the OS keychain for persistence across restarts.
+  b) The running sidecar is hot-reloaded via POST /providers/keys — no restart
+     needed. The provider comes online immediately.
+
+WHERE IT IS:
+  Sidebar → Settings (⚙️) at the bottom of the sidebar under "System".
+
+PROVIDERS PANEL:
+  Three cards appear: Google AI Studio (Gemini), Groq, OpenRouter.
+  Each card shows:
+    - "active" (green border) or "inactive" (grey border)
+    - "stored" badge if a key is already in the keychain
+
+HOW TO ADD A KEY (demo steps):
+  1. Get a free Gemini key from aistudio.google.com → "Get API key" → copy it.
+  2. In Phorrom Settings, click the password input under "Google AI Studio".
+  3. Paste the key. The button changes from "Clear" to "Save".
+  4. Click Save.
+  5. The card border turns green immediately and shows "active · stored".
+  6. Switch to Chat — the Gemini provider dropdown is now enabled with a full
+     list of Gemini models fetched live from the API.
+
+Example keys (free tiers, no credit card):
+  - GEMINI_API_KEY   → aistudio.google.com
+  - GROQ_API_KEY     → console.groq.com (very fast inference, generous free tier)
+  - OPENROUTER_API_KEY → openrouter.ai  (gateway to 300+ models, many free)
+
+HOW TO CLEAR A KEY:
+  Leave the input blank and click "Clear". The keychain entry is removed and the
+  provider goes back to inactive.
+
+================================================================================
+SECTION 2 — CHAT (core feature)
+================================================================================
+
+WHAT IT DOES:
+A full conversational interface to any configured provider/model. Keeps a
+rolling message history so the model has context of the whole conversation.
+Each response shows token counts, latency, and which provider/model answered.
+
+WHERE IT IS:
+  Sidebar → Chat (💬) — opens by default when the app starts.
+
+CONTROLS (in the topbar):
+  Left dropdown  → provider (mock / ollama / gemini / groq / openrouter)
+  Right dropdown → model (populated live from that provider's /models endpoint)
+  "optimize" toggle → enables the Response Optimization Layer (see below)
+  depth selector → brief / standard / deep (only visible when optimize is on)
+
+BASIC EXAMPLE:
+  1. Select provider: gemini
+  2. Select model:    gemini-1.5-flash  (fast, free)
+  3. Type: "What is a good approach for building a soil moisture sensor on ₹500?"
+  4. Press Enter or click Send.
+  5. The response appears in a bubble. Below it: "gemini/gemini-1.5-flash · 45+312 tok · 1840ms"
+     This tells you: 45 tokens in your prompt, 312 tokens in the reply, 1.84 seconds.
+
+MOCK PROVIDER (no key needed, always works):
+  - Select provider: mock
+  - Two models: mock-small (fast lorem-ipsum), mock-large (slower lorem-ipsum)
+  - Used for offline testing or UI development.
+
+OPTIMIZE MODE (capability #10 — Response Optimization Layer):
+  - Toggle the "optimize" switch ON.
+  - Choose depth: "deep" for the most thorough re-steering.
+  - Ask the same question. Behind the scenes the sidecar:
+      1. Gets a first-pass answer from the model.
+      2. Scores it on correctness, relevance, and coherence (0–1 each).
+      3. If the score is below threshold, it steers the model with a critique
+         and re-generates. Up to 3 passes for "deep".
+      4. Returns the best response along with the iteration count and final score.
+  - The meta line shows: "optimized · score 0.87 · 2 pass(es) · relevance 0.91"
+
+PROVIDER FALLBACK (automatic, via circuit breaker):
+  If a provider call fails (network error, rate limit), the circuit breaker opens
+  for that provider and the orchestrator automatically routes to the next best one.
+  You can watch this in the Dashboard tab (circuit state: closed / half_open / open).
+
+================================================================================
+SECTION 3 — PLAN (define the problem + manage tasks)
+================================================================================
+
+WHAT IT DOES:
+Three sub-features in one panel:
+  1. Problem Statement Architect (capability #1): AI-refines a raw problem
+     description into a structured statement with gap, success criteria,
+     validation notes, and clarifying questions.
+  2. Task Manager (capability #8): dependency-aware, auto-prioritized task list
+     with urgency/impact sliders. Priority score = urgency × impact (0–1).
+  3. Progress Assessment (capability #7): non-binary milestone scoring that
+     reads your task list and generates completion %, health %, risks, and
+     next-step recommendations.
+
+WHERE IT IS:
+  Sidebar → Plan (🗂️)
+
+STEP-BY-STEP DEMO:
+
+A) Define the problem:
+  1. In the textarea type:
+       "I want to build a cheap IoT sensor that monitors soil moisture in real
+        time and sends alerts to a phone when the soil is too dry."
+  2. Click "Define / refine".
+  3. The sidecar calls the AI to produce:
+       - Refined statement: "Design a ₹500 IoT soil-moisture sensor with
+         real-time phone alerts and 30-day battery life."
+       - Gap: "Existing solutions cost ₹3000+ or require always-on power."
+       - Success criteria: "Latency < 5 s; battery > 30 days; BOM < ₹500"
+       - Validation: "Prototype and measure actual power draw before ordering."
+       - Clarifying questions: ["What connectivity? WiFi or LoRa?",
+                                 "Is the alert SMS or app push?"]
+  4. The purple card appears with all of this. This becomes the anchor for
+     Ideation and Advisor.
+
+B) Add tasks:
+  1. Type a task name: "Research low-power MCU options (ESP32 vs nRF52)"
+  2. Set urgency to 0.9, impact to 0.8. Click Add.
+     Priority score = 0.9 × 0.8 = 0.72 — shown as "P 0.72".
+  3. Add another: "Design PCB schematic" urgency 0.5, impact 0.9. P 0.45.
+  4. Add: "Write firmware for ADC reading" urgency 0.7, impact 0.7. P 0.49.
+  5. Tasks appear sorted by priority. The dependency engine marks "Write
+     firmware" as "blocked-by-deps" if it depends on the PCB task.
+  6. Click the status dot to cycle: ○ todo → … in_progress → ✕ blocked → ✓ done.
+
+C) Progress assessment:
+  1. Complete one task by clicking its dot until it shows ✓.
+  2. Click "Assess".
+  3. The sidecar runs capability #7:
+       - Completion: "33%" (1 of 3 done)
+       - Health: "72%" (weighted quality of completed tasks)
+       - Risks: "[medium] PCB design not started but firmware depends on it"
+       - Recommendations: "→ Start PCB schematic before firmware sprint"
+  4. The green card shows narrative, risk list, and recommendations.
+
+================================================================================
+SECTION 4 — IDEATION (generate & rank concepts)
+================================================================================
+
+WHAT IT DOES:
+Generates a ranked list of ideas for the project's problem. Each idea is scored
+on feasibility, novelty, and relevance (0–1 bars). Ideas that need concepts the
+user doesn't know yet create "gap" items that flow automatically into the
+Advisor's learning plan. You can mark ideas as selected (★) or dismissed (✕).
+
+WHERE IT IS:
+  Sidebar → Ideation (💡)
+
+STEP-BY-STEP DEMO:
+  1. The textarea is pre-aimed at the project's problem statement, but you can
+     add a focus: "Focus on ultra-low-power designs using capacitive sensing."
+  2. Click "Generate ideas".
+  3. The sidecar returns 5–8 ranked ideas, e.g.:
+       - "Capacitive sensing with ATtiny85" score 8.4
+           feasibility ████████░░ 0.8
+           novelty     ██████░░░░ 0.6
+           relevance   █████████░ 0.9
+           Rationale: "ATtiny85 sleeps at 0.1 µA; capacitive sensing needs no
+           excitation power unlike resistive."
+           Needs (→ becomes learning gaps): capacitive-sensing, ATtiny85, I2C
+       - "LoRa + ChirpStack gateway mesh" score 7.1
+       - "BLE beacon with smartphone as gateway" score 6.8
+  4. Click ○ next to an idea to cycle: ○ suggested → ★ selected → ✕ dismissed.
+  5. Mark "Capacitive sensing with ATtiny85" as selected (★).
+  6. Switch to Advisor. The "capacitive-sensing, ATtiny85, I2C" items from
+     step 3 have automatically appeared as "gap" learning items in the plan.
+
+================================================================================
+SECTION 5 — RESEARCH (prior-art search)
+================================================================================
+
+WHAT IT DOES:
+Queries two real academic databases — arXiv and Semantic Scholar — and returns
+real papers (titles, authors, year, abstract snippet, DOI/URL). Then summarizes
+the landscape and identifies white space: gaps in the existing literature that
+your project could fill. Nothing is fabricated; every result is a real paper.
+
+WHERE IT IS:
+  Sidebar → Research (🔬)
+
+STEP-BY-STEP DEMO:
+  1. Type a query: "low power soil moisture sensing IoT capacitive"
+  2. Click "Search prior art".
+  3. The sidecar hits arXiv API and Semantic Scholar API in parallel, fetches
+     up to 10 results, stores them in ChromaDB for grounding.
+  4. Results appear as a numbered list:
+       1. "Low-Power Capacitive Soil Moisture Sensor for Precision Agriculture"
+          [arXiv] [2023] Smith, J., Patel, R.
+          "We present a capacitive sensor array consuming 12 µA average…"
+       2. "Long-range LoRaWAN sensor network for field monitoring"
+          [Semantic Scholar] [2022] ...
+  5. At the top, a green "White-space summary" card appears:
+       "Current literature covers resistive and capacitive sensing but lacks
+        sub-₹500 BOM solutions for Indian market constraints. No paper addresses
+        integration with open-source alert stacks (Apprise/Gotify). 3 of 10
+        sources address power budgets below 1 mW."
+       🔭 White space: "Cost-optimised capacitive sensor + open-source push
+          notification stack for resource-constrained deployments."
+  6. Click any paper title — it opens the source URL in the browser.
+
+================================================================================
+SECTION 6 — ORCHESTRATOR (flagship: multi-model task decomposition)
+================================================================================
+
+WHAT IT DOES:
+This is the flagship feature. Given a complex task description and a token
+budget, the orchestrator:
+  1. Decomposes the task into a DAG (directed acyclic graph) of subtasks.
+  2. Estimates token cost and quality requirement for each subtask.
+  3. Runs the token-budget LP optimizer (PuLP/OR-Tools) to reserve tokens for
+     future critical subtasks, preventing starvation.
+  4. Routes each ready subtask to the most suitable available model using a
+     contextual-bandit router (Thompson sampling) — or a learned scikit-learn
+     model if you've run /ml/train.
+  5. Optionally executes all ready subtasks immediately and returns outputs.
+
+WHERE IT IS:
+  Sidebar → Orchestrator (🧩)
+
+WHAT EACH FIELD DOES:
+  - Task textarea     : plain English description of the full task
+  - Token budget      : total tokens available for all subtasks (e.g., 4000)
+  - "execute now" box : if checked, the sidecar actually calls the AI for each
+                        ready subtask and returns text outputs
+
+STEP-BY-STEP DEMO (without execute):
+  1. In the textarea type:
+       "Write a technical feasibility report for a ₹500 IoT soil moisture sensor:
+        background research summary, hardware BOM, firmware architecture,
+        connectivity options, and a go/no-go recommendation."
+  2. Token budget: 4000
+  3. Leave "execute now" unchecked for the routing demo.
+  4. Click "Decompose & route".
+  5. The budget bar appears at the top:
+       💰 Budget 4000 | 🔒 Reserved 1200 (future) | ✅ Available 2800
+       🔥 Spent 0 metered | 🧮 lp | 🛣️ critical path S1→S3→S5
+  6. Subtask cards appear:
+
+       [S1] type:research  size:600tok  value:0.9  p_required:0.7
+            "Summarize existing literature on low-power soil sensing"
+            depends on: (none)  ← ready (blue border)
+            → routed to gemini/gemini-1.5-flash (quality 0.82, free)
+
+       [S2] type:analysis  size:400tok  value:0.8  p_required:0.6
+            "Compile hardware BOM under ₹500 constraint"
+            depends on: S1  ← waiting (grey border)
+
+       [S3] type:code      size:500tok  value:0.85  p_required:0.75
+            "Outline firmware architecture for ATtiny85 ADC + sleep cycle"
+            depends on: S2  ← waiting
+
+       [S4] type:comparison  size:300tok  value:0.7  p_required:0.6
+            "Compare WiFi vs LoRa vs BLE for connectivity"
+            depends on: (none)  ← ready (blue border)
+            → routed to groq/llama3-8b-8192 (quality 0.74, free)
+
+       [S5] type:synthesis  size:800tok  value:0.95  p_required:0.9
+            "Write go/no-go recommendation synthesising all above"
+            depends on: S1,S2,S3,S4  ← waiting
+
+  Key points to explain on camera:
+    - S1 and S4 are "ready" because they have no dependencies.
+    - S5 is the most expensive (800 tok, value 0.95) — the LP optimizer
+      RESERVED tokens for it so it is guaranteed budget when its deps finish.
+    - The router chose Gemini for S1 (needs quality 0.7+) and Groq for S4
+      (quality 0.6 is sufficient, Groq is faster).
+    - Critical path S1→S3→S5 tells you the minimum time to completion.
+
+STEP-BY-STEP DEMO (with execute):
+  1. Check "execute now".
+  2. Click "Decompose & route" again.
+  3. The sidecar executes S1 and S4 (the ready ones) in parallel via their
+     routed providers. S2–S5 wait.
+  4. Outputs appear in each card:
+       S1 output: "Existing literature shows three dominant approaches:
+                   resistive (cheap, corrodes), capacitive (accurate, complex),
+                   FDR (expensive). Three papers focus on sub-5µA designs…"
+       S4 output: "BLE is lowest power (0.01 mA avg) but range <10m. LoRa
+                   reaches 2km but requires ₹800 gateway. WiFi is simplest
+                   but draws 80mA active…"
+  5. Token spend updates: 🔥 Spent 912 metered.
+
+================================================================================
+SECTION 7 — ADVISOR (resource & learning plan)
+================================================================================
+
+WHAT IT DOES:
+Generates a prerequisite-ordered learning plan and a curated list of free tools,
+datasets, and services for the project. It reads the knowledge gaps produced by
+the Ideation tab (the "required_concepts" from selected ideas) and turns them
+into structured learning items with links.
+
+Three sub-sections:
+  1. Breakthrough opportunities — high-leverage improvements ranked by
+     payoff/effort ratio (e.g. "Switch to capacitive sensing" score 9.1)
+  2. Learn first — prerequisite-ordered learning items grouped by concept,
+     with gap badges for things identified via Ideation
+  3. Resources — free tools, libraries, datasets grouped by kind
+     (software / dataset / service / hardware)
+
+WHERE IT IS:
+  Sidebar → Advisor (🧭)
+
+STEP-BY-STEP DEMO:
+  1. In the top textarea type:
+       "Build a ₹500 IoT soil moisture sensor with real-time phone alerts"
+  2. Tech input: "python, c, esp32, iot"
+  3. Task types: "sensor, firmware, dashboard, alerting"
+  4. Click "Recommend resources & learning plan".
+  5. The progress bar appears:
+       📚 Learn: 0/8 done · 3 gap items
+       🧰 Resources: 0/6 used
+       🧠 Concepts: 0 mastered · 3 gaps
+       🚀 Breakthroughs: 2
+  6. Breakthrough card example:
+       "Switch from resistive to capacitive soil sensing" score 9.1
+       benefit tags: accuracy · longevity · cost
+       impact: high | effort: medium
+       Rationale: "Resistive probes corrode in 3 months; capacitive lasts years
+                   with no moving parts."
+       Needs: capacitive-sensing, RC-oscillator
+       Click ○ → … (exploring) → ✓ (done) → ✕ (dismissed)
+  7. Learn first (left column), grouped by concept:
+       capacitive-sensing
+         ○ "RC Oscillator Circuit Design" — gap [youtube]
+         ○ "555 timer capacitance measurement" [hackaday]
+       ATtiny85
+         ○ "ATtiny85 Getting Started" [arduino docs]
+         ○ "Deep sleep modes on AVR" [avr freaks]
+       I2C
+         ○ "I2C in depth" [sparkfun tutorial]
+  8. Resources (right column), grouped by kind:
+       software
+         ○ MicroPython [free] — "Full Python on ESP32 for rapid prototyping"
+         ○ PlatformIO [free] — "Cross-platform embedded IDE"
+       dataset
+         ○ UCI Soil Dataset [free] — "Benchmark for sensor calibration"
+       service
+         ○ Adafruit IO [free] — "MQTT dashboard, 30-day history free tier"
+  9. Click any ○ next to a learning item to cycle todo → in_progress → done.
+     The progress bar at the top updates.
+
+================================================================================
+SECTION 8 — DOCS (document generation + OCR/transcription)
+================================================================================
+
+WHAT IT DOES:
+Two completely independent sub-features:
+  A) Research-paper / report generator: synthesises everything in the project
+     (problem statement, tasks, research results, ideas) into a Pandoc-rendered
+     document — PDF, DOCX, or Markdown — in IEEE, ACM, or APA style.
+  B) Multimodal input: extract text from images (OCR via Tesseract) or
+     transcribe audio files (speech-to-text via OpenAI Whisper local model).
+
+WHERE IT IS:
+  Sidebar → Docs (📄)
+
+TOOL STATUS BADGES (shown at top):
+  Pandoc: ready ✅ / missing ❌
+  LaTeX: ready ✅ / missing ❌      ← needed for PDF output
+  Tesseract: ready ✅ / missing ❌  ← needed for OCR
+  whisper: ready ✅ / missing ❌    ← needed for transcription
+  model: ready ✅ / missing ❌      ← Whisper model file downloaded
+
+A) GENERATE A REPORT:
+  1. Select format: PDF (needs Pandoc + LaTeX) or DOCX or Markdown.
+  2. Select style: IEEE / ACM / APA.
+  3. Click "Generate report".
+  4. The sidecar pulls the project's problem statement, all tasks, all research
+     results, and all selected ideas, then assembles them into a Markdown
+     document and calls Pandoc to render it.
+  5. A green card appears:
+       "Generated PDF — IEEE"
+       saved to: C:\Users\...\phorrom_project_1.pdf
+       Preview (first 1200 chars of Markdown):
+         # Feasibility Report: IoT Soil Moisture Sensor
+         ## Problem Statement
+         Design a ₹500 IoT soil moisture sensor with real-time phone alerts...
+         ## Prior Art Summary
+         3 papers reviewed. White space: cost-optimised capacitive sensing...
+
+B) OCR (extract text from an image):
+  1. Type or paste a file path: "C:\Users\Shriharsh\Desktop\circuit_diagram.png"
+  2. Click OCR.
+  3. Tesseract runs on the image and returns extracted text in a card.
+     "via Tesseract"
+
+C) TRANSCRIBE (speech to text):
+  1. Type a path to a WAV file (must be 16kHz mono): "C:\recordings\meeting.wav"
+  2. Click Transcribe.
+  3. Whisper tiny model runs locally and returns the transcript.
+     "via openai-whisper (tiny)"
+
+================================================================================
+SECTION 9 — DASHBOARD (provider health + token ledger + ML estimators)
+================================================================================
+
+WHAT IT DOES:
+Live-updating (refreshes every 5 seconds) system health view. Three sections:
+
+  1. Provider health — for each provider: online/offline dot, model count,
+     circuit-breaker state (closed=green/half_open=yellow/open=red), fail count.
+  2. Token ledger — cumulative token consumption broken down by provider,
+     with proportional bar charts. This is your running cost tracker.
+  3. Learned estimators — shows whether the token/quality estimator has been
+     trained on real samples, and if so, its R² and MAE scores.
+
+WHERE IT IS:
+  Sidebar → Dashboard (📊)
+
+STEP-BY-STEP DEMO:
+  1. Open Dashboard — providers refresh live every 5 seconds.
+     Example view:
+       ● gemini    [32 models] circuit: closed
+       ○ groq      [12 models] circuit: closed
+       ○ ollama    [0 models]  circuit: closed
+       ○ openrouter [5 models] circuit: open  [3 fails]
+
+     "circuit: open" means the circuit breaker tripped after 3 consecutive
+     failures. The orchestrator will skip this provider until it recovers.
+     After 30 seconds it moves to "half_open" (one trial request), then
+     back to "closed" if that request succeeds.
+
+  2. Token ledger (after running some chat/orchestration):
+       Σ total consumed: 2841 tokens
+       gemini      1920 tok  ██████████████░░░░  67%
+       groq         621 tok  █████░░░░░░░░░░░░░  22%
+       mock         300 tok  ██░░░░░░░░░░░░░░░░  11%
+
+  3. Learned estimators:
+     Initial state: "○ heuristic (untrained)" — the router uses hard-coded
+     heuristic rules (model size → quality score).
+     After running orchestration with "execute now" several times, samples
+     accumulate. Click "Train":
+       - The sidecar fits two scikit-learn Ridge regression models:
+           • token estimator: predicts prompt_tokens from subtask description
+           • quality estimator: predicts observed quality from model+task
+       - Metrics appear: "token R² 0.84 · MAE 47  ·  quality R² 0.71"
+     Now the orchestrator's router uses these learned estimates instead of
+     heuristics — smarter routing with real historical data.
+
+================================================================================
+SECTION 10 — SETTINGS: CLOUD BACKUP (Google Drive encrypted backup)
+================================================================================
+
+WHAT IT DOES:
+Backs up the entire SQLite database (all projects, tasks, tokens, learning
+progress, ML samples) to Google Drive as an AES-256 encrypted blob. The
+passphrase never leaves your machine — Drive only ever sees ciphertext.
+Restore pulls the file back and decrypts it locally.
+
+WHERE IT IS:
+  Sidebar → Settings (⚙️) → scroll down to "Cloud backup (Google Drive)"
+
+HOW TO DEMO:
+  1. First, a credentials.json file from a Google Cloud project (OAuth 2.0
+     desktop app credential) must be present. The card shows:
+       "credentials ✓" or "credentials.json missing"
+  2. Click "Connect Google account" — a browser window opens for OAuth sign-in.
+     After signing in, the card shows "Connected — your@gmail.com".
+  3. Type an encryption passphrase: "my-secret-passphrase-123"
+  4. Click "Back up now".
+     Status: "Backed up: phorrom_2026-06-22T17:38:00.enc"
+  5. The Snapshots list appears with the backup file name.
+  6. To restore: click "Restore" next to a snapshot and enter the same
+     passphrase. The restored DB takes effect after restart.
+     "This overwrites local data (effective after restart)."
+
+SECURITY NOTE (voiceover):
+  "The passphrase is used to derive an AES-256 key entirely on your device.
+   Google Drive receives only the encrypted bytes — it cannot read your data."
+
+================================================================================
+SECTION 11 — THE INSTALLER
+================================================================================
+
+Phorrom ships as a single NSIS installer:
+  src-tauri/target/release/bundle/nsis/Phorrom_0.1.0_x64-setup.exe
+
+What the installer does:
+  - Installs the Tauri shell (app.exe) and the bundled Python sidecar
+    (phorrom-sidecar.exe, produced by PyInstaller — no Python install needed).
+  - Adds a Start Menu shortcut and a desktop shortcut.
+  - Registers an uninstaller.
+  - TinyTeX (for PDF generation) is bundled in the install directory.
+
+End users only need to:
+  1. Run Phorrom_0.1.0_x64-setup.exe
+  2. Follow the 3-click installer.
+  3. Launch Phorrom from the desktop shortcut.
+  4. Add their free API keys in Settings.
+  Everything else (Python runtime, sidecar, SQLite, ChromaDB) is self-contained.
+
+================================================================================
+DEMO FLOW (SUGGESTED ORDER FOR VIDEO)
+================================================================================
+
+Recommended sequence for a 5–10 minute demo video:
+
+00:00 — Cold open: show the installer, double-click, app opens.
+00:30 — Settings: add a Gemini key, watch provider flip to "active".
+01:00 — Chat: ask one question, point out provider/model/token meta.
+01:45 — Plan: define the soil sensor problem, add 3 tasks, run assessment.
+03:00 — Ideation: generate ideas, show feasibility/novelty/relevance bars,
+         mark one as selected, show "gap" concepts appear.
+04:00 — Research: search "low power soil moisture sensing", show real papers
+         + white-space summary.
+05:00 — Orchestrator: decompose the feasibility report task, show DAG,
+         budget reservation, per-subtask routing. Then check "execute" and
+         show actual AI outputs.
+07:00 — Advisor: run recommendation, show learning plan + breakthrough cards.
+08:00 — Docs: click "Generate report" → PDF appears in the output card.
+08:45 — Dashboard: point out provider health, token ledger, ML train button.
+09:15 — Settings (Cloud): briefly show backup/restore flow.
+09:45 — Wrap-up: "100% free-tier, runs locally, no telemetry."
+
+================================================================================
+KEY TALKING POINTS (for voiceover)
+================================================================================
+
+1. ZERO RECURRING COST
+   Every provider (Gemini, Groq, OpenRouter) has a free tier. Ollama is 100%
+   local with no API calls. The mock provider needs nothing at all.
+
+2. LOCAL-FIRST / OFFLINE-FIRST
+   The core (mock + Ollama) works with no internet. Cloud providers are
+   optional accelerators.
+
+3. PRIVATE & SECURE
+   API keys live in the OS keychain, never in files. Backups are encrypted
+   before they touch Google Drive. No telemetry.
+
+4. THE ORCHESTRATOR IS THE HEART
+   It's not just a chat wrapper. It decomposes, budgets (LP solver), and routes
+   across multiple AI models simultaneously — a proper multi-agent system.
+
+5. SELF-IMPROVING ROUTING
+   The ML estimators learn from your actual usage. The more you orchestrate,
+   the better the token and quality predictions become — the router gets smarter.
+
+6. FULL DOCUMENT PIPELINE
+   From raw problem description → research → ideation → tasks → orchestrated
+   drafting → Pandoc-rendered PDF in IEEE style. End-to-end.
+
+================================================================================
+END OF DEMO SCRIPT
+================================================================================

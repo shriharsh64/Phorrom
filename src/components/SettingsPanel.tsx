@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type CloudStatus, type ProviderInfo, type Snapshot } from "../lib/api";
+import { api, type AppSettings, type CloudStatus, type ProviderInfo, type Snapshot } from "../lib/api";
 import { isTauri, secretStatus, setSecret } from "../lib/tauri";
 
 // Provider keys: stored in the OS keychain (desktop) and applied to the running sidecar
@@ -23,6 +23,13 @@ export default function SettingsPanel() {
   const [cloudMsg, setCloudMsg] = useState<string | null>(null);
   const [cloudBusy, setCloudBusy] = useState(false);
 
+  // --- autosave / workspace settings ---
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  async function refreshSettings() { setAppSettings(await api.getSettings()); }
+  async function patchSettings(s: Partial<AppSettings>) {
+    setAppSettings(await api.updateSettings(s as never));
+  }
+
   async function refresh() {
     setStored(await secretStatus());
     const p = await api.providers();
@@ -36,6 +43,7 @@ export default function SettingsPanel() {
   useEffect(() => {
     void refresh();
     void refreshCloud();
+    void refreshSettings();
   }, []);
 
   async function connect() {
@@ -53,6 +61,7 @@ export default function SettingsPanel() {
     setCloudBusy(true);
     try {
       const r = await api.cloudBackup(pass);
+      if (r.ok) sessionStorage.setItem("phorrom_pass", pass); // enables session cloud autobackup
       setCloudMsg(r.ok ? `Backed up: ${r.snapshot?.name}` : r.error ?? "Backup failed");
       await refreshCloud();
     } finally { setCloudBusy(false); }
@@ -114,6 +123,33 @@ export default function SettingsPanel() {
         <p className="hint" style={{ textAlign: "left" }}>
           Local models (Ollama) and the mock provider need no key and are always available.
         </p>
+      </section>
+
+      <section style={{ marginTop: 18 }}>
+        <h2>Workspace & autosave</h2>
+        {appSettings && (
+          <div className="bt-card" style={{ flexDirection: "column", alignItems: "stretch" }}>
+            <div className="meta">Projects folder: <code>{appSettings.workspace_path}</code></div>
+            <label className="switch" style={{ marginTop: 10 }}>
+              <input type="checkbox" checked={appSettings.autosave_enabled}
+                onChange={(e) => void patchSettings({ autosave_enabled: e.target.checked })} />
+              <span>Autosave project data to its folder on an interval</span>
+            </label>
+            <label className="field-label" style={{ marginTop: 10 }}>Autosave interval (seconds)</label>
+            <input type="number" min={15} value={appSettings.autosave_interval_sec}
+              style={{ maxWidth: 160 }}
+              onChange={(e) => setAppSettings({ ...appSettings, autosave_interval_sec: Number(e.target.value) })}
+              onBlur={(e) => void patchSettings({ autosave_interval_sec: Math.max(15, Number(e.target.value)) })} />
+            <label className="switch" style={{ marginTop: 12 }}>
+              <input type="checkbox" checked={appSettings.cloud_autobackup}
+                onChange={(e) => void patchSettings({ cloud_autobackup: e.target.checked })} />
+              <span>Also back up to Google Drive each interval (needs a backup passphrase below)</span>
+            </label>
+            <div className="meta" style={{ marginTop: 6 }}>
+              Cloud autobackup uses the passphrase from your last backup this session — it is never stored on disk.
+            </div>
+          </div>
+        )}
       </section>
 
       <section style={{ marginTop: 18 }}>
